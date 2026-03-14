@@ -2,6 +2,8 @@ package com.example.campaign.contact.service;
 
 import com.example.campaign.common.exception.ResourceNotFoundException;
 import com.example.campaign.common.exception.ValidationFailedException;
+import com.example.campaign.common.exception.DuplicateResourceException;
+import com.example.campaign.common.exception.FileProcessingException;
 import com.example.campaign.common.response.PagedResponse;
 import com.example.campaign.contact.dto.request.ContactCreateRequest;
 import com.example.campaign.contact.dto.request.ContactSearchRequest;
@@ -48,7 +50,7 @@ public class ContactService {
         log.info("Creating contact{}{}", request.getName(), request.getPhone());
         boolean isNumberExist = contactRepository.existsByPhone(request.getPhone());
         if (isNumberExist) {
-            throw new ValidationFailedException(request.getPhone() + "Phone number already exist");
+            throw new DuplicateResourceException("Contact", "phone", request.getPhone());
         }
         Contact contact = new Contact();
         contact.setName(request.getName());
@@ -63,12 +65,12 @@ public class ContactService {
         log.info("Updating contact id {}", id);
 
         Contact contact = contactRepository.findById(id)
-                .orElseThrow(() -> new ValidationFailedException("Contact not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Contact", "id", id));
 
         boolean phoneExists = contactRepository.existsByPhoneAndIdNot(request.getPhone(), id);
 
         if (phoneExists) {
-            throw new ValidationFailedException("Phone number already exists");
+            throw new DuplicateResourceException("Contact", "phone", request.getPhone());
         }
 
         contact.setName(request.getName());
@@ -86,7 +88,7 @@ public class ContactService {
         log.info("Deleting contact id {}", id);
 
         Contact contact = contactRepository.findById(id)
-                .orElseThrow(() -> new ValidationFailedException("Contact not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Contact", "id", id));
 
         contactRepository.deleteById(contact.getId());
 
@@ -161,7 +163,7 @@ public class ContactService {
                     validate(row);
 
                     if (phoneSet.contains(row.getPhone())) {
-                        throw new RuntimeException("Duplicate phone in file");
+                        throw new DuplicateResourceException("Contact", "phone", row.getPhone());
                     }
 
                     phoneSet.add(row.getPhone());
@@ -194,7 +196,7 @@ public class ContactService {
 
         } catch (Exception ex) {
 
-            throw new RuntimeException("File processing failed", ex);
+            throw new FileProcessingException("File processing failed", ex);
         }
     }
 
@@ -210,17 +212,17 @@ public class ContactService {
             return excelParser.parse(file);
         }
 
-        throw new RuntimeException("Unsupported file type");
+        throw new FileProcessingException("Unsupported file type: " + name);
     }
 
     private void validate(ContactCreateRequest row) {
 
         if (row.getName() == null || row.getName().isBlank()) {
-            throw new RuntimeException("Name is required");
+            throw new ValidationFailedException("Name is required");
         }
 
         if (!PHONE_PATTERN.matcher(row.getPhone()).matches()) {
-            throw new RuntimeException("Invalid phone format");
+            throw new ValidationFailedException("Invalid phone format");
         }
     }
 
