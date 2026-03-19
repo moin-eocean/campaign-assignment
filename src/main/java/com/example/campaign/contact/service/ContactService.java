@@ -12,7 +12,6 @@ import com.example.campaign.contact.dto.response.BulkUploadResponse;
 import com.example.campaign.contact.dto.response.ContactResponse;
 import com.example.campaign.contact.dto.response.RowError;
 import com.example.campaign.contact.entity.Contact;
-import com.example.campaign.contact.enums.ContactStatus;
 import com.example.campaign.contact.parser.CsvContactParser;
 import com.example.campaign.contact.parser.ExcelContactParser;
 import com.example.campaign.contact.repository.ContactRepository;
@@ -44,7 +43,6 @@ public class ContactService {
     private final ExcelContactParser excelParser;
 
     private static final Pattern PHONE_PATTERN = Pattern.compile("^[0-9]{11}$");
-
 
     public ContactResponse create(ContactCreateRequest request) {
         log.info("Creating contact{}{}", request.getName(), request.getPhone());
