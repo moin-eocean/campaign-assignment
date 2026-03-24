@@ -10,9 +10,6 @@ import java.time.LocalDateTime;
 @Table(name = "message_log")
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
 @FieldNameConstants
 public class MessageLog {
 
@@ -37,7 +34,6 @@ public class MessageLog {
     @Column(columnDefinition = "TEXT")
     private String rawError;
 
-    @Builder.Default
     @Column(nullable = false)
     private int retryCount = 0;
 

@@ -1,6 +1,7 @@
 package com.example.campaign.contact.repository;
 
 import com.example.campaign.contact.entity.Contact;
+import jakarta.validation.constraints.NotEmpty;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
@@ -14,4 +15,6 @@ public interface ContactRepository extends JpaRepository<Contact, Long>,
     List<Contact> findByPhoneIn(List<String> phones);
 
     boolean existsByPhoneAndIdNot(String phone, Long id);
+
+    List<Contact> findAllByIdIn(List<Long> contactIds);
 }

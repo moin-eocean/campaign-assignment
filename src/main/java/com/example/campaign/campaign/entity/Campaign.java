@@ -14,9 +14,6 @@ import java.time.LocalDateTime;
 @Table(name = "campaign")
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
 @FieldNameConstants
 public class Campaign {
 
@@ -29,7 +26,6 @@ public class Campaign {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    @Builder.Default
     private CampaignStatus status = CampaignStatus.DRAFT;
 
     @Enumerated(EnumType.STRING)

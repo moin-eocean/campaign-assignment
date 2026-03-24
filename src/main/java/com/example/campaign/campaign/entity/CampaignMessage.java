@@ -1,5 +1,6 @@
 package com.example.campaign.campaign.entity;
 
+import com.example.campaign.campaign.enums.MessageType;
 import jakarta.persistence.*;
 import lombok.*;
 import lombok.experimental.FieldNameConstants;
@@ -8,9 +9,6 @@ import lombok.experimental.FieldNameConstants;
 @Table(name = "campaign_message")
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
 @FieldNameConstants
 public class CampaignMessage {
 
@@ -22,8 +20,9 @@ public class CampaignMessage {
     @JoinColumn(name = "campaign_id", nullable = false)
     private Campaign campaign;
 
+    @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private String type; // e.g., TEXT, IMAGE
+    private MessageType type;
 
     @Column(columnDefinition = "TEXT", nullable = false)
     private String content; // JSON or raw string content

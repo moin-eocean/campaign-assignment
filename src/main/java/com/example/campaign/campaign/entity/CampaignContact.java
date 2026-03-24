@@ -12,9 +12,6 @@ import java.time.LocalDateTime;
 @Table(name = "campaign_contact")
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
 @FieldNameConstants
 public class CampaignContact {
 
@@ -30,7 +27,6 @@ public class CampaignContact {
     @JoinColumn(name = "contact_id", nullable = false)
     private Contact contact;
 
-    @Builder.Default
     @Column(nullable = false)
     private boolean processed = false;
 

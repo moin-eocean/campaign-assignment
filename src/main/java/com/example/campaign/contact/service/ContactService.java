@@ -140,7 +140,7 @@ public class ContactService {
                 .last(page.isLast())
                 .build();
     }
-
+    // TODO : this should be async
     public BulkUploadResponse upload(MultipartFile file) {
 
         List<RowError> errors = new ArrayList<>();
@@ -166,11 +166,9 @@ public class ContactService {
 
                     phoneSet.add(row.getPhone());
 
-                    Contact contact = Contact.builder()
-                            .name(row.getName())
-                            .phone(row.getPhone())
-                            .build();
-
+                    Contact contact = new Contact();
+                    contact.setName(row.getName());
+                    contact.setPhone(row.getPhone());
                     validContacts.add(contact);
 
                 } catch (Exception ex) {

@@ -15,9 +15,6 @@ import java.time.LocalDateTime;
 @Table(name = "contacts")
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
 @FieldNameConstants
 public class Contact {
 
@@ -33,7 +30,6 @@ public class Contact {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    @Builder.Default
     private ContactStatus status = ContactStatus.ACTIVE;
 
     @CreationTimestamp
