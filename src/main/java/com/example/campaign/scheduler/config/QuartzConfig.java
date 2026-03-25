@@ -10,10 +10,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.quartz.SpringBeanJobFactory;
 
-/**
- * Quartz ko Spring context se aware karta hai
- * taaki Jobs mein @Autowired kaam kare.
- */
 @Configuration
 public class QuartzConfig {
 

@@ -12,10 +12,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-/**
- * Redis mein campaign ka data load karta hai.
- * DataPreloadJob yahi call karega.
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -25,14 +21,6 @@ public class CampaignRedisService {
     private final CampaignContactRepository campaignContactRepository;
     private final CampaignMessageRepository campaignMessageRepository;
 
-    /**
-     * Campaign ka poora data DB se Redis mein load karta hai.
-     * Contacts → Redis LIST (RPUSH)
-     * Message  → Redis STRING (SET as JSON)
-     * Status   → PENDING
-     *
-     * @param campaignId campaign ka unique ID
-     */
     public void loadCampaignDataIntoRedis(Long campaignId) {
         log.info("[Redis Preload] Starting data preload for campaignId={}", campaignId);
 
@@ -43,21 +31,15 @@ public class CampaignRedisService {
         log.info("[Redis Preload] Completed data preload for campaignId={}", campaignId);
     }
 
-    // ─────────────────────────────────────────────
-    // Private Helpers
-    // ─────────────────────────────────────────────
-
     private void loadContacts(Long campaignId) {
         String redisKey = String.format(Constants.REDIS_CONTACTS_KEY, campaignId);
 
-        // Pehle check karo — already loaded hai toh dobara mat daalo (idempotent)
         Long existingCount = redisTemplate.opsForList().size(redisKey);
         if (existingCount != null && existingCount > 0) {
             log.warn("[Redis Preload] Contacts already exist in Redis for campaignId={}, skipping.", campaignId);
             return;
         }
 
-        // DB se contacts fetch karo (phone numbers only — lean fetch)
         List<String> phoneNumbers = campaignContactRepository
                 .findPhoneNumbersByCampaignId(campaignId);  // Custom query — neeche dekho
 
@@ -66,7 +48,6 @@ public class CampaignRedisService {
             return;
         }
 
-        // Redis LIST mein batch RPUSH
         redisTemplate.opsForList().rightPushAll(redisKey, phoneNumbers);
 
         log.info("[Redis Preload] Loaded {} contacts into Redis for campaignId={}", phoneNumbers.size(), campaignId);
@@ -75,7 +56,6 @@ public class CampaignRedisService {
     private void loadMessage(Long campaignId) {
         String redisKey = String.format(Constants.REDIS_MESSAGE_KEY, campaignId);
 
-        // Already loaded hai toh skip karo
         if (Boolean.TRUE.equals(redisTemplate.hasKey(redisKey))) {
             log.warn("[Redis Preload] Message already exists in Redis for campaignId={}, skipping.", campaignId);
             return;

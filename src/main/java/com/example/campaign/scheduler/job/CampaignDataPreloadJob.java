@@ -6,21 +6,11 @@ import lombok.extern.slf4j.Slf4j;
 import org.quartz.*;
 import org.springframework.beans.factory.annotation.Autowired;
 
-/**
- * JOB 1 — CampaignDataPreloadJob
- *
- * Campaign ke scheduledAt se 5 MINUTE PEHLE fire hota hai.
- * Kaam: DB se contacts + message fetch karo aur Redis mein daalo.
- *
- * @DisallowConcurrentExecution = ek campaign ke liye ek waqt mein
- *                                 sirf ek preload job chalegi.
- */
 @Slf4j
 @DisallowConcurrentExecution
 @PersistJobDataAfterExecution
 public class CampaignDataPreloadJob implements Job {
 
-    // Spring @Autowired kaam karta hai kyunki QuartzConfig mein SpringBeanJobFactory set ki hai
     @Autowired
     private CampaignRedisService campaignRedisService;
 
@@ -38,7 +28,6 @@ public class CampaignDataPreloadJob implements Job {
 
         } catch (Exception e) {
             log.error("[PreloadJob] FAILED for campaignId={} — Reason: {}", campaignId, e.getMessage(), e);
-            // JobExecutionException throw karo taaki Quartz retry kar sake
             throw new JobExecutionException("Data preload failed for campaignId=" + campaignId, e, false);
         }
     }

@@ -14,14 +14,6 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.util.List;
 
-/**
- * Application restart hone pe — jo campaigns PENDING hain
- * aur unki fire time abhi bhi future mein hai,
- * unhe re-register karo Quartz mein.
- *
- * NOTE: Quartz JDBC store khud bhi recover karta hai,
- * yeh extra safety layer hai DB campaigns ke liye.
- */
 @Component
 @RequiredArgsConstructor
 @Slf4j
@@ -39,7 +31,6 @@ public class CampaignRecoveryStartup implements ApplicationRunner {
 
         for (Campaign campaign : pendingCampaigns) {
             try {
-                // Agar Quartz mein already hai (JDBC store ne recover kiya) toh skip karo
                 if (campaignSchedulerService.isFireJobScheduled(campaign.getId())) {
                     log.info("[Recovery] Already scheduled in Quartz: {}", campaign.getId());
                     continue;

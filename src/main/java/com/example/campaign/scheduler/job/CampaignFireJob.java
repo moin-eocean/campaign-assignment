@@ -10,17 +10,6 @@ import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 
-/**
- * JOB 2 — CampaignFireJob
- * <p>
- * Campaign ke exact scheduledAt pe fire hota hai.
- * Kaam:
- * 1. Redis check karo — data loaded hai ya nahi (safety guard)
- * 2. RabbitMQ mein campaignId publish karo
- * 3. Redis status → RUNNING
- *
- * @DisallowConcurrentExecution = ek campaign ek baar hi fire hogi.
- */
 @Slf4j
 @DisallowConcurrentExecution
 public class CampaignFireJob implements Job {

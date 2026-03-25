@@ -15,8 +15,6 @@ public class RedisService {
 
     private final RedisTemplate<String, Object> redisTemplate;
 
-    // ─── STRING operations ──────────────────────────────────
-
     public void set(String key, Object value, Duration ttl) {
         redisTemplate.opsForValue().set(key, value, ttl);
         log.debug("Redis SET key={} ttl={}", key, ttl);

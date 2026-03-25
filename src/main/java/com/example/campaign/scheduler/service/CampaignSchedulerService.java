@@ -12,13 +12,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.util.Date;
 
-/**
- * Campaign ke liye dono Quartz jobs schedule/cancel karta hai.
- *
- * schedule()  → dono jobs register karo
- * cancel()    → dono jobs delete karo (campaign update/delete pe)
- * reschedule()→ naya time set karo
- */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -26,25 +19,12 @@ public class CampaignSchedulerService {
 
     private final Scheduler scheduler;
 
-    // ─────────────────────────────────────────────────────────────────────
-    // PUBLIC API
-    // ─────────────────────────────────────────────────────────────────────
-
-    /**
-     * Naya scheduled campaign register karo.
-     * Dono jobs ek saath atomically schedule hoti hain.
-     *
-     * @param campaignId  campaign ka ID (String PK)
-     * @param scheduledAt campaign fire hone ka exact time
-     */
     public void schedule(Long campaignId, LocalDateTime scheduledAt) throws SchedulerException {
 
         log.info("[Scheduler] Scheduling campaignId={} at {}", campaignId, scheduledAt);
 
         LocalDateTime preloadAt = scheduledAt.minusMinutes(Constants.PRELOAD_OFFSET_MINUTES);
 
-        // Guard: agar preload time pehle hi nikal gaya toh adjust karo
-        // (bahut late schedule kiya hua campaign — unlikely but safe)
         if (preloadAt.isBefore(LocalDateTime.now())) {
             log.warn("[Scheduler] Preload time already passed for campaignId={}, setting to now+10s", campaignId);
             preloadAt = LocalDateTime.now().plusSeconds(10);
@@ -64,7 +44,6 @@ public class CampaignSchedulerService {
                 scheduledAt
         );
 
-        // Dono jobs atomically register karo
         scheduler.scheduleJob(preloadJobDetail, preloadTrigger);
         scheduler.scheduleJob(fireJobDetail, fireTrigger);
 
@@ -72,12 +51,6 @@ public class CampaignSchedulerService {
                 preloadAt, scheduledAt, campaignId);
     }
 
-    /**
-     * Campaign cancel ho gayi — dono jobs hata do.
-     * Campaign update/delete pe call karo.
-     *
-     * @param campaignId campaign ID
-     */
     public void cancel(Long campaignId) throws SchedulerException {
         log.info("[Scheduler] Cancelling jobs for campaignId={}", campaignId);
 
@@ -91,21 +64,12 @@ public class CampaignSchedulerService {
         log.info("[Scheduler] Jobs cancelled for campaignId={}", campaignId);
     }
 
-    /**
-     * Campaign ka time update ho gaya — cancel karo aur naya schedule karo.
-     *
-     * @param campaignId    campaign ID
-     * @param newScheduledAt naya time
-     */
     public void reschedule(Long campaignId, LocalDateTime newScheduledAt) throws SchedulerException {
         log.info("[Scheduler] Rescheduling campaignId={} to {}", campaignId, newScheduledAt);
         cancel(campaignId);
         schedule(campaignId, newScheduledAt);
     }
 
-    /**
-     * Check karo — campaign ka FireJob still pending hai ya nahi.
-     */
     public boolean isFireJobScheduled(Long campaignId) throws SchedulerException {
         JobKey fireJobKey = new JobKey(
             Constants.FIRE_JOB_PREFIX + campaignId,
@@ -113,10 +77,6 @@ public class CampaignSchedulerService {
         );
         return scheduler.checkExists(fireJobKey);
     }
-
-    // ─────────────────────────────────────────────────────────────────────
-    // PRIVATE BUILDERS
-    // ─────────────────────────────────────────────────────────────────────
 
     private JobDetail buildPreloadJobDetail(Long campaignId) {
         return JobBuilder.newJob(CampaignDataPreloadJob.class)
@@ -138,10 +98,6 @@ public class CampaignSchedulerService {
                 .build();
     }
 
-    /**
-     * One-time trigger banata hai — ek baar fire karo, dobara nahi.
-     * Misfire policy: FireNow — agar server down tha toh restart pe immediately fire karo.
-     */
     private Trigger buildOneTimeTrigger(String triggerName, String triggerGroup, LocalDateTime fireAt) {
         Date fireDate = Date.from(fireAt.atZone(ZoneId.systemDefault()).toInstant());
 
