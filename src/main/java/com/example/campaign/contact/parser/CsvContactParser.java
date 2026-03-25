@@ -15,11 +15,11 @@ import java.util.List;
 public class CsvContactParser implements ContactFileParser {
 
     @Override
-    public List<ContactCreateRequest> parse(MultipartFile file) throws Exception {
+    public List<ContactCreateRequest> parse(java.io.InputStream inputStream) throws Exception {
 
         List<ContactCreateRequest> contacts = new ArrayList<>();
 
-        Reader reader = new InputStreamReader(file.getInputStream());
+        Reader reader = new InputStreamReader(inputStream);
 
         Iterable<CSVRecord> records = CSVFormat.DEFAULT
                 .withFirstRecordAsHeader()

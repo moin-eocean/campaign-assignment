@@ -1,6 +1,7 @@
 package com.example.campaign.common.service;
 
 import com.example.campaign.campaign.entity.CampaignMessage;
+import com.example.campaign.campaign.enums.CampaignStatus;
 import com.example.campaign.campaign.repository.CampaignContactRepository;
 import com.example.campaign.campaign.repository.CampaignMessageRepository;
 import com.example.campaign.scheduler.constant.SchedulerConstants;
@@ -98,6 +99,6 @@ public class CampaignRedisService {
 
     private void setInitialStatus(Long campaignId) {
         String statusKey = String.format(SchedulerConstants.REDIS_STATUS_KEY, campaignId);
-        redisTemplate.opsForValue().set(statusKey, SchedulerConstants.STATUS_PENDING);
+        redisTemplate.opsForValue().set(statusKey, CampaignStatus.RUNNING.name());
     }
 }

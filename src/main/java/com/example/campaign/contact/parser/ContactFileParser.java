@@ -7,6 +7,6 @@ import java.util.List;
 
 public interface ContactFileParser {
 
-    List<ContactCreateRequest> parse(MultipartFile file) throws Exception;
+    List<ContactCreateRequest> parse(java.io.InputStream inputStream) throws Exception;
 
 }

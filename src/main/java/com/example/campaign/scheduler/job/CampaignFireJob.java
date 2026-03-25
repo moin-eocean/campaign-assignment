@@ -1,7 +1,7 @@
 package com.example.campaign.scheduler.job;
 
+import com.example.campaign.campaign.enums.CampaignStatus;
 import com.example.campaign.campaign.service.CampaignProducer;
-import com.example.campaign.common.config.RabbitMQConfig;
 import com.example.campaign.scheduler.constant.SchedulerConstants;
 import lombok.extern.slf4j.Slf4j;
 import org.quartz.*;
@@ -57,10 +57,9 @@ public class CampaignFireJob implements Job {
 
             // ── Status Update ─────────────────────────────────────────────
             String statusKey = String.format(SchedulerConstants.REDIS_STATUS_KEY, campaignId);
-            redisTemplate.opsForValue().set(statusKey, SchedulerConstants.STATUS_RUNNING);
+            redisTemplate.opsForValue().set(statusKey, CampaignStatus.RUNNING.name());
 
             // ── RabbitMQ Publish ──────────────────────────────────────────
-            rabbitTemplate.convertAndSend(RabbitMQConfig.CAMPAIGN_EXCHANGE, RabbitMQConfig.CAMPAIGN_ROUTING_KEY, campaignId);
             campaignProducer.sendCampaign(campaignId);
             log.info("[FireJob] SUCCESS — campaignId={} published to RabbitMQ. " +
                     "Contacts in queue: {}", campaignId, contactCount);

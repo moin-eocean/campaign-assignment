@@ -15,11 +15,11 @@ import java.util.List;
 public class ExcelContactParser implements ContactFileParser {
 
     @Override
-    public List<ContactCreateRequest> parse(MultipartFile file) throws Exception {
+    public List<ContactCreateRequest> parse(java.io.InputStream inputStream) throws Exception {
 
         List<ContactCreateRequest> contacts = new ArrayList<>();
 
-        Workbook workbook = new XSSFWorkbook(file.getInputStream());
+        Workbook workbook = new XSSFWorkbook(inputStream);
 
         Sheet sheet = workbook.getSheetAt(0);
 

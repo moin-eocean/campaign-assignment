@@ -5,7 +5,7 @@ import com.example.campaign.common.response.PagedResponse;
 import com.example.campaign.contact.dto.request.ContactCreateRequest;
 import com.example.campaign.contact.dto.request.ContactSearchRequest;
 import com.example.campaign.contact.dto.request.ContactUpdateRequest;
-import com.example.campaign.contact.dto.response.BulkUploadResponse;
+
 import com.example.campaign.contact.dto.response.ContactResponse;
 import com.example.campaign.contact.service.ContactService;
 import jakarta.validation.Valid;
@@ -45,9 +45,10 @@ public class ContactController {
     }
 
     @PostMapping("/upload")
-    public ResponseEntity<ApiResponse<BulkUploadResponse>> upload(
+    public ResponseEntity<ApiResponse<String>> upload(
             @RequestParam("file") MultipartFile file) {
-        return ResponseEntity.ok(ApiResponse.success(contactService.upload(file)));
+        contactService.upload(file);
+        return ResponseEntity.ok(ApiResponse.success("File upload started. Processing in background."));
     }
 
     @PutMapping("/{id}")

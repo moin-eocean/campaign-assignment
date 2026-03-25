@@ -23,16 +23,7 @@ public final class SchedulerConstants {
     public static final String REDIS_STATUS_KEY   = "campaign:%s:status";     // STRING
     public static final String REDIS_STATS_KEY    = "campaign:%s:stats";      // HASH
 
-    // Redis Status Values
-    public static final String STATUS_PENDING  = "PENDING";
-    public static final String STATUS_RUNNING  = "RUNNING";
-    public static final String STATUS_PAUSED   = "PAUSED";
-    public static final String STATUS_STOPPED  = "STOPPED";
-    public static final String STATUS_COMPLETED = "COMPLETED";
-
     // Timing
     public static final long PRELOAD_OFFSET_MINUTES = 5L; // FireJob se 5 min pehle
 
-    // RabbitMQ
-    public static final String CAMPAIGN_QUEUE = "campaign.queue";
 }

@@ -3,7 +3,7 @@ package com.example.campaign.campaign.enums;
 public enum CampaignStatus {
     DRAFT,
     SCHEDULED,
-    IN_PROGRESS,
+    RUNNING,
     COMPLETED,
     CANCELLED,
     FAILED

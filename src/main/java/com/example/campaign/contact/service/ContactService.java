@@ -33,6 +33,10 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.scheduling.annotation.Async;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -140,30 +144,36 @@ public class ContactService {
                 .last(page.isLast())
                 .build();
     }
-    // TODO : this should be async
-    public BulkUploadResponse upload(MultipartFile file) {
 
+    public void upload(MultipartFile file) {
+
+        try {
+            byte[] fileBytes = file.getBytes();
+            String originalFilename = file.getOriginalFilename();
+
+            processFileAsync(fileBytes, originalFilename);
+        } catch (Exception ex) {
+            throw new FileProcessingException("Failed to start background file processing", ex);
+        }
+    }
+
+    @Async
+    public void processFileAsync(byte[] fileBytes, String originalFilename) {
         List<RowError> errors = new ArrayList<>();
         List<Contact> validContacts = new ArrayList<>();
 
         try {
-
-            List<ContactCreateRequest> rows = parseFile(file);
+            List<ContactCreateRequest> rows = parseFile(new java.io.ByteArrayInputStream(fileBytes), originalFilename);
 
             Set<String> phoneSet = new HashSet<>();
-
             int rowNumber = 1;
 
             for (ContactCreateRequest row : rows) {
-
                 try {
-
                     validate(row);
-
                     if (phoneSet.contains(row.getPhone())) {
                         throw new DuplicateResourceException("Contact", "phone", row.getPhone());
                     }
-
                     phoneSet.add(row.getPhone());
 
                     Contact contact = new Contact();
@@ -172,40 +182,30 @@ public class ContactService {
                     validContacts.add(contact);
 
                 } catch (Exception ex) {
-
                     errors.add(new RowError(rowNumber, ex.getMessage()));
                 }
-
                 rowNumber++;
             }
 
             removeDbDuplicates(validContacts, errors);
-
             contactRepository.saveAll(validContacts);
 
-            return BulkUploadResponse.builder()
-                    .totalRows(rows.size())
-                    .successCount(validContacts.size())
-                    .failedCount(errors.size())
-                    .errors(errors)
-                    .build();
+            log.info("Async upload completed. Total: {}, Success: {}, Failed: {}",
+                    rows.size(), validContacts.size(), errors.size());
 
         } catch (Exception ex) {
-
-            throw new FileProcessingException("File processing failed", ex);
+            log.error("Background file processing failed", ex);
         }
     }
 
-    private List<ContactCreateRequest> parseFile(MultipartFile file) throws Exception {
+    private List<ContactCreateRequest> parseFile(java.io.InputStream inputStream, String name) throws Exception {
 
-        String name = file.getOriginalFilename();
-
-        if (name.endsWith(".csv")) {
-            return csvParser.parse(file);
+        if (name != null && name.endsWith(".csv")) {
+            return csvParser.parse(inputStream);
         }
 
-        if (name.endsWith(".xlsx")) {
-            return excelParser.parse(file);
+        if (name != null && name.endsWith(".xlsx")) {
+            return excelParser.parse(inputStream);
         }
 
         throw new FileProcessingException("Unsupported file type: " + name);
