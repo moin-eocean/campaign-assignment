@@ -41,5 +41,23 @@ spring:
           min-idle: 2
           max-wait: 1000ms
 
+  quartz:
+    job-store-type: jdbc               # Production: DB mein persist hoga
+    jdbc:
+      initialize-schema: always        # Quartz tables auto-create karega
+    properties:
+      org.quartz:
+        scheduler:
+          instanceName: CampaignScheduler
+          instanceId: AUTO           # Cluster ke liye AUTO
+        jobStore:
+          tablePrefix: QRTZ_
+          isClustered: false         # Single node — true karo agar cluster ho
+          clusterCheckinInterval: 10000
+          useProperties: false
+        threadPool:
+          class: org.quartz.simpl.SimpleThreadPool
+          threadCount: 10            # 10 parallel jobs max
+          threadPriority: 5
 server:
   port: 8080

@@ -12,6 +12,7 @@ import com.example.campaign.campaign.repository.CampaignMessageRepository;
 import com.example.campaign.campaign.repository.CampaignRepository;
 import com.example.campaign.contact.entity.Contact;
 import com.example.campaign.contact.repository.ContactRepository;
+import com.example.campaign.scheduler.service.CampaignSchedulerService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -30,7 +31,7 @@ public class CampaignService {
     private final CampaignContactRepository campaignContactRepository;
     private final CampaignMessageRepository campaignMessageRepository;
     private final CampaignProducer campaignProducer;
-
+    private final CampaignSchedulerService campaignSchedulerService;
 
     @Transactional
     public CampaignResponse createCampaign(CampaignCreateRequest request) {
@@ -39,7 +40,7 @@ public class CampaignService {
         Campaign campaign = new Campaign();
         campaign.setName(request.getName());
         campaign.setType(request.getType());
-        campaign.setStatus(CampaignStatus.DRAFT);
+        campaign.setStatus(CampaignStatus.SCHEDULED);
         campaign.setScheduledAt(request.getScheduledAt());
         campaign = campaignRepository.save(campaign);
 
@@ -65,7 +66,14 @@ public class CampaignService {
         log.info("Campaign created successfully with ID: {} and {} contacts", campaign.getId(), contacts.size());
 
         if (campaign.getType().equals(CampaignType.IMMEDIATE)) {
-            campaignProducer.sendCampaign(campaign);
+            campaignProducer.sendCampaign(campaign.getId());
+        } else if (campaign.getType().equals(CampaignType.SCHEDULED)) {
+            try {
+                campaignSchedulerService.schedule(campaign.getId(), campaign.getScheduledAt());
+            } catch (Exception e) {
+                log.error("Failed to schedule campaign: {}", campaign.getId(), e);
+                // Handle appropriately, or throw
+            }
         }
 
         return CampaignResponse.toResponse(campaign);

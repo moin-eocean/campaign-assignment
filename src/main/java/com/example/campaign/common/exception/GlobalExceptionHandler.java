@@ -157,6 +157,18 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error("The requested endpoint was not found"));
     }
 
+    // ─── 500 Scheduler Error ──────────────────────────────────────
+    @ExceptionHandler(org.quartz.SchedulerException.class)
+    public ResponseEntity<ApiResponse<Void>> handleSchedulerException(
+            org.quartz.SchedulerException ex) {
+
+        log.error("Scheduler error occurred: ", ex);
+
+        return ResponseEntity
+                .status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiResponse.error("Scheduler error: " + ex.getMessage()));
+    }
+
     // ─── 500 Fallback ─────────────────────────────────────────────
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleGenericException(Exception ex) {

@@ -14,12 +14,12 @@ public class CampaignProducer {
 
     private final RabbitTemplate rabbitTemplate;
 
-    public void sendCampaign(Campaign campaign) {
+    public void sendCampaign(Long campaignId) {
         rabbitTemplate.convertAndSend(
                 RabbitMQConfig.CAMPAIGN_EXCHANGE,
                 RabbitMQConfig.CAMPAIGN_ROUTING_KEY,
-                campaign
+                campaignId
         );
-        log.info("Campaign sent: {}", campaign);
+        log.info("Campaign sent: {}", campaignId);
     }
 }
