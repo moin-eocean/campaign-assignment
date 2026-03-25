@@ -1,7 +1,7 @@
 package com.example.campaign.scheduler.job;
 
 import com.example.campaign.common.service.CampaignRedisService;
-import com.example.campaign.scheduler.constant.SchedulerConstants;
+import com.example.campaign.common.constant.Constants;
 import lombok.extern.slf4j.Slf4j;
 import org.quartz.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,7 +28,7 @@ public class CampaignDataPreloadJob implements Job {
     public void execute(JobExecutionContext context) throws JobExecutionException {
 
         Long campaignId = context.getMergedJobDataMap()
-                .getLong(SchedulerConstants.KEY_CAMPAIGN_ID);
+                .getLong(Constants.KEY_CAMPAIGN_ID);
 
         log.info("[PreloadJob] Fired for campaignId={} — Loading data into Redis", campaignId);
 

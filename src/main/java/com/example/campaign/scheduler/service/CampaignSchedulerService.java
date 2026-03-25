@@ -1,6 +1,6 @@
 package com.example.campaign.scheduler.service;
 
-import com.example.campaign.scheduler.constant.SchedulerConstants;
+import com.example.campaign.common.constant.Constants;
 import com.example.campaign.scheduler.job.CampaignDataPreloadJob;
 import com.example.campaign.scheduler.job.CampaignFireJob;
 import lombok.RequiredArgsConstructor;
@@ -41,7 +41,7 @@ public class CampaignSchedulerService {
 
         log.info("[Scheduler] Scheduling campaignId={} at {}", campaignId, scheduledAt);
 
-        LocalDateTime preloadAt = scheduledAt.minusMinutes(SchedulerConstants.PRELOAD_OFFSET_MINUTES);
+        LocalDateTime preloadAt = scheduledAt.minusMinutes(Constants.PRELOAD_OFFSET_MINUTES);
 
         // Guard: agar preload time pehle hi nikal gaya toh adjust karo
         // (bahut late schedule kiya hua campaign — unlikely but safe)
@@ -52,15 +52,15 @@ public class CampaignSchedulerService {
 
         JobDetail preloadJobDetail = buildPreloadJobDetail(campaignId);
         Trigger preloadTrigger = buildOneTimeTrigger(
-                SchedulerConstants.PRELOAD_TRIG_PREFIX + campaignId,
-                SchedulerConstants.GROUP_PRELOAD,
+                Constants.PRELOAD_TRIG_PREFIX + campaignId,
+                Constants.GROUP_PRELOAD,
                 preloadAt
         );
 
         JobDetail fireJobDetail = buildFireJobDetail(campaignId);
         Trigger fireTrigger = buildOneTimeTrigger(
-                SchedulerConstants.FIRE_TRIG_PREFIX + campaignId,
-                SchedulerConstants.GROUP_FIRE,
+                Constants.FIRE_TRIG_PREFIX + campaignId,
+                Constants.GROUP_FIRE,
                 scheduledAt
         );
 
@@ -82,10 +82,10 @@ public class CampaignSchedulerService {
         log.info("[Scheduler] Cancelling jobs for campaignId={}", campaignId);
 
         deleteJobIfExists(
-            new JobKey(SchedulerConstants.PRELOAD_JOB_PREFIX + campaignId, SchedulerConstants.GROUP_PRELOAD)
+            new JobKey(Constants.PRELOAD_JOB_PREFIX + campaignId, Constants.GROUP_PRELOAD)
         );
         deleteJobIfExists(
-            new JobKey(SchedulerConstants.FIRE_JOB_PREFIX + campaignId, SchedulerConstants.GROUP_FIRE)
+            new JobKey(Constants.FIRE_JOB_PREFIX + campaignId, Constants.GROUP_FIRE)
         );
 
         log.info("[Scheduler] Jobs cancelled for campaignId={}", campaignId);
@@ -108,8 +108,8 @@ public class CampaignSchedulerService {
      */
     public boolean isFireJobScheduled(Long campaignId) throws SchedulerException {
         JobKey fireJobKey = new JobKey(
-            SchedulerConstants.FIRE_JOB_PREFIX + campaignId,
-            SchedulerConstants.GROUP_FIRE
+            Constants.FIRE_JOB_PREFIX + campaignId,
+            Constants.GROUP_FIRE
         );
         return scheduler.checkExists(fireJobKey);
     }
@@ -120,9 +120,9 @@ public class CampaignSchedulerService {
 
     private JobDetail buildPreloadJobDetail(Long campaignId) {
         return JobBuilder.newJob(CampaignDataPreloadJob.class)
-                .withIdentity(SchedulerConstants.PRELOAD_JOB_PREFIX + campaignId, SchedulerConstants.GROUP_PRELOAD)
+                .withIdentity(Constants.PRELOAD_JOB_PREFIX + campaignId, Constants.GROUP_PRELOAD)
                 .withDescription("Redis preload for campaignId=" + campaignId)
-                .usingJobData(SchedulerConstants.KEY_CAMPAIGN_ID, campaignId)
+                .usingJobData(Constants.KEY_CAMPAIGN_ID, campaignId)
                 .storeDurably(false)   // Trigger ke saath hi delete ho
                 .requestRecovery(true) // Crash ke baad recover kare
                 .build();
@@ -130,9 +130,9 @@ public class CampaignSchedulerService {
 
     private JobDetail buildFireJobDetail(Long campaignId) {
         return JobBuilder.newJob(CampaignFireJob.class)
-                .withIdentity(SchedulerConstants.FIRE_JOB_PREFIX + campaignId, SchedulerConstants.GROUP_FIRE)
+                .withIdentity(Constants.FIRE_JOB_PREFIX + campaignId, Constants.GROUP_FIRE)
                 .withDescription("RabbitMQ fire for campaignId=" + campaignId)
-                .usingJobData(SchedulerConstants.KEY_CAMPAIGN_ID, campaignId)
+                .usingJobData(Constants.KEY_CAMPAIGN_ID, campaignId)
                 .storeDurably(false)
                 .requestRecovery(true)
                 .build();

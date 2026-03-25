@@ -10,10 +10,12 @@ import com.example.campaign.campaign.enums.CampaignType;
 import com.example.campaign.campaign.repository.CampaignContactRepository;
 import com.example.campaign.campaign.repository.CampaignMessageRepository;
 import com.example.campaign.campaign.repository.CampaignRepository;
+import com.example.campaign.common.exception.ValidationFailedException;
 import com.example.campaign.contact.entity.Contact;
 import com.example.campaign.contact.repository.ContactRepository;
 import com.example.campaign.scheduler.service.CampaignSchedulerService;
 import com.example.campaign.common.service.CampaignRedisService;
+import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -69,37 +71,39 @@ public class CampaignService {
 
         if (campaign.getType().equals(CampaignType.IMMEDIATE)) {
             try {
-                campaignRedisService.loadCampaignDataIntoRedis(campaign.getId());
-                campaign.setStatus(CampaignStatus.RUNNING);
-                campaignRepository.save(campaign);
-
-                campaignProducer.sendCampaign(campaign.getId());
-
-                log.info("[CampaignService] IMMEDIATE campaign published to queue. campaignId={}",
-                         campaign.getId());
-
+                executeCampaign(campaign.getId());
+                log.info("[CampaignService] IMMEDIATE campaign processed successfully. id={}", campaign.getId());
             } catch (Exception e) {
-                // Redis ya RabbitMQ fail ho gaya
-                log.error("[CampaignService] Failed to process IMMEDIATE campaign. campaignId={}, reason={}",
-                          campaign.getId(), e.getMessage(), e);
-
-                // Campaign FAILED mark karo
-                campaign.setStatus(CampaignStatus.FAILED);
-                campaignRepository.save(campaign);
-                
-                // Exception throw NAHI karna — client ko FAILED campaign return karo
+                log.error("[CampaignService] Failed to process IMMEDIATE campaign. id={}, reason={}", campaign.getId(), e.getMessage(), e);
             }
         } else if (campaign.getType().equals(CampaignType.SCHEDULED)) {
+            if(campaign.getScheduledAt() == null){
+                throw new ValidationFailedException("Scheduled time is required for scheduled campaign");
+            }
             try {
                 campaign.setStatus(CampaignStatus.SCHEDULED);
                 campaignRepository.save(campaign);
                 campaignSchedulerService.schedule(campaign.getId(), campaign.getScheduledAt());
             } catch (Exception e) {
                 log.error("Failed to schedule campaign: {}", campaign.getId(), e);
-                // Handle appropriately, or throw
             }
         }
-
+ 
         return CampaignResponse.toResponse(campaign);
+    }
+
+    @Transactional
+    public void executeCampaign(Long campaignId) {
+        log.info("[CampaignService] Executing campaign execution sequence for campaignId={}", campaignId);
+        
+        Campaign campaign = campaignRepository.findById(campaignId)
+                .orElseThrow(() -> new EntityNotFoundException("Campaign not found with ID: " + campaignId));
+
+        campaignRedisService.loadCampaignDataIntoRedis(campaignId);
+        campaign.setStatus(CampaignStatus.RUNNING);
+        campaignRepository.save(campaign);
+        campaignProducer.sendCampaign(campaignId);
+
+        log.info("[CampaignService] SUCCESS — campaignId={} published to queue and status updated to RUNNING", campaignId);
     }
 }

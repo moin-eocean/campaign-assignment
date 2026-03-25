@@ -1,8 +1,8 @@
-package com.example.campaign.scheduler.constant;
+package com.example.campaign.common.constant;
 
-public final class SchedulerConstants {
+public final class Constants {
 
-    private SchedulerConstants() {}
+    private Constants() {}
 
     // Job Group Names
     public static final String GROUP_PRELOAD = "CAMPAIGN_PRELOAD";
