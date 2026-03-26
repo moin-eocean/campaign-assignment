@@ -1,14 +1,10 @@
 package com.example.campaign.scheduler.job;
 
-import com.example.campaign.campaign.enums.CampaignStatus;
-import com.example.campaign.campaign.service.CampaignProducer;
 import com.example.campaign.campaign.service.CampaignService;
 import com.example.campaign.common.constant.Constants;
 import lombok.extern.slf4j.Slf4j;
 import org.quartz.*;
-import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.RedisTemplate;
 
 @Slf4j
 @DisallowConcurrentExecution

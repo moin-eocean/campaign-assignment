@@ -7,6 +7,7 @@ import com.example.campaign.campaign.entity.CampaignContact;
 import com.example.campaign.campaign.entity.CampaignMessage;
 import com.example.campaign.campaign.enums.CampaignStatus;
 import com.example.campaign.campaign.enums.CampaignType;
+import com.example.campaign.campaign.producer.CampaignProducer;
 import com.example.campaign.campaign.repository.CampaignContactRepository;
 import com.example.campaign.campaign.repository.CampaignMessageRepository;
 import com.example.campaign.campaign.repository.CampaignRepository;

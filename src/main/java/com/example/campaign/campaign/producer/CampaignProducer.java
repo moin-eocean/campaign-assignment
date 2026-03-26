@@ -1,6 +1,5 @@
-package com.example.campaign.campaign.service;
+package com.example.campaign.campaign.producer;
 
-import com.example.campaign.campaign.entity.Campaign;
 import com.example.campaign.common.config.RabbitMQConfig;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;

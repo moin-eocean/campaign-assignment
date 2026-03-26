@@ -2,6 +2,11 @@ spring:
   application:
     name: campaign-management
 
+  # Enable Java 21 Virtual Threads globally
+  threads:
+    virtual:
+      enabled: true
+
   datasource:
     url: jdbc:mysql://localhost:3306/campaign?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
     username: root
@@ -25,8 +30,10 @@ spring:
     virtual-host: /
     listener:
       simple:
-        acknowledge-mode: manual   # manual ack for reliability
+        acknowledge-mode: auto
         prefetch: 1
+        concurrency: 2
+        max-concurrency: 10
 
   data:
     redis:
@@ -59,5 +66,11 @@ spring:
           class: org.quartz.simpl.SimpleThreadPool
           threadCount: 10            # 10 parallel jobs max
           threadPriority: 5
+
+# WhatsApp Global Semaphore — controls max concurrent API calls across ALL campaigns
+whatsapp:
+  semaphore:
+    permits: 80                        # Dev: 80, Production: 800
+
 server:
   port: 8080

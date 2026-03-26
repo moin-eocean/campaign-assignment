@@ -78,4 +78,54 @@ public class CampaignRedisService {
         String statusKey = String.format(Constants.REDIS_STATUS_KEY, campaignId);
         redisTemplate.opsForValue().set(statusKey, CampaignStatus.RUNNING.name());
     }
+
+    // ─── Methods used by ContactExecutor ─────────────────────
+
+    /**
+     * LPOP a phone number from the campaign's contact queue.
+     * Returns null when the list is empty.
+     */
+    public String lpopContact(Long campaignId) {
+        String key = String.format(Constants.REDIS_CONTACTS_KEY, campaignId);
+        return redisTemplate.opsForList().leftPop(key);
+    }
+
+    public String getCampaignMessage(Long campaignId) {
+        String key = String.format(Constants.REDIS_MESSAGE_KEY, campaignId);
+        return redisTemplate.opsForValue().get(key);
+    }
+
+    public String getCampaignStatus(Long campaignId) {
+        String key = String.format(Constants.REDIS_STATUS_KEY, campaignId);
+        return redisTemplate.opsForValue().get(key);
+    }
+
+    public void setCampaignStatus(Long campaignId, String status) {
+        String key = String.format(Constants.REDIS_STATUS_KEY, campaignId);
+        redisTemplate.opsForValue().set(key, status);
+    }
+
+    /**
+     * HINCRBY on campaign:{id}:stats — atomically increments "sent" or "failed" counters.
+     */
+    public void incrementStat(Long campaignId, String field) {
+        String key = String.format(Constants.REDIS_STATS_KEY, campaignId);
+        redisTemplate.opsForHash().increment(key, field, 1);
+    }
+
+    /**
+     * Records a sent contact in campaign:{id}:contacts:sent HASH (phone → timestamp).
+     */
+    public void markContactSent(Long campaignId, String phone, long timestamp) {
+        String key = String.format(Constants.REDIS_CONTACTS_SENT_KEY, campaignId);
+        redisTemplate.opsForHash().put(key, phone, String.valueOf(timestamp));
+    }
+
+    /**
+     * Records a failed contact in campaign:{id}:contacts:failures HASH (phone → reason:timestamp).
+     */
+    public void markContactFailed(Long campaignId, String phone, String reasonWithTimestamp) {
+        String key = String.format(Constants.REDIS_CONTACTS_FAILURES_KEY, campaignId);
+        redisTemplate.opsForHash().put(key, phone, reasonWithTimestamp);
+    }
 }
