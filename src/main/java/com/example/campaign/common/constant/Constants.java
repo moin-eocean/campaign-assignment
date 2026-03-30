@@ -28,4 +28,9 @@ public final class Constants {
     // Timing
     public static final long PRELOAD_OFFSET_MINUTES = 5L; // FireJob se 5 min pehle
 
+    // Rabbit MQ
+    public static final String CAMPAIGN_QUEUE = "campaign.queue";
+    public static final String CAMPAIGN_EXCHANGE = "campaign.exchange";
+    public static final String CAMPAIGN_ROUTING_KEY = "campaign.routing.key";
+
 }

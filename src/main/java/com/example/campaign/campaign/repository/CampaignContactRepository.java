@@ -13,4 +13,7 @@ public interface CampaignContactRepository extends JpaRepository<CampaignContact
 
     @Query("SELECT c.phone FROM CampaignContact cc JOIN cc.contact c WHERE cc.campaign.id = :campaignId AND cc.processed = false")
     List<String> findPhoneNumbersByCampaignId(@Param("campaignId") Long campaignId);
+
+    @Query("SELECT cc.contact.id FROM CampaignContact cc WHERE cc.campaign.id = :campaignId")
+    List<Long> findContactIdsByCampaignId(@Param("campaignId") Long campaignId);
 }

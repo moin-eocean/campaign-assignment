@@ -1,10 +1,9 @@
-package com.example.campaign.contact.parser;
+package com.example.campaign.segment.parser;
 
 import com.example.campaign.contact.dto.request.ContactCreateRequest;
 import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVRecord;
 import org.springframework.stereotype.Component;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.io.InputStreamReader;
 import java.io.Reader;

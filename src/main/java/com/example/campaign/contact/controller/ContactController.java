@@ -44,13 +44,6 @@ public class ContactController {
         return ResponseEntity.ok(ApiResponse.success(contactService.create(request)));
     }
 
-    @PostMapping("/upload")
-    public ResponseEntity<ApiResponse<String>> upload(
-            @RequestParam("file") MultipartFile file) {
-        contactService.upload(file);
-        return ResponseEntity.ok(ApiResponse.success("File upload started. Processing in background."));
-    }
-
     @PutMapping("/{id}")
     public ResponseEntity<ApiResponse<ContactResponse>> update(
             @PathVariable Long id,

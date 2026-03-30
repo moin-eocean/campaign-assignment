@@ -1,4 +1,4 @@
-package com.example.campaign.contact.parser;
+package com.example.campaign.segment.parser;
 
 import com.example.campaign.contact.dto.request.ContactCreateRequest;
 import org.apache.poi.ss.usermodel.Row;
@@ -6,7 +6,6 @@ import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.stereotype.Component;
-import org.springframework.web.multipart.MultipartFile;
 
 import java.util.ArrayList;
 import java.util.List;

@@ -156,9 +156,14 @@
             }
           },
           "response": []
-        },
+        }
+      ]
+    },
+    {
+      "name": "Segments",
+      "item": [
         {
-          "name": "7. Upload Contacts (Bulk File)",
+          "name": "1. Upload Contacts & Create Segment",
           "request": {
             "method": "POST",
             "header": [],
@@ -169,17 +174,175 @@
                   "key": "file",
                   "type": "file",
                   "src": []
+                },
+                {
+                  "key": "segmentName",
+                  "value": "New Segment",
+                  "type": "text"
                 }
               ]
             },
             "url": {
-              "raw": "{{baseUrl}}/contacts/upload",
+              "raw": "{{baseUrl}}/segments",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
+                "segments"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "2. Get All Segments",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/segments",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "segments"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3. Search Segments",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"search\": \"\",\n  \"page\": 0,\n  \"size\": 20,\n  \"sortBy\": \"createdAt\",\n  \"sortDirection\": \"desc\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/segments/search",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "segments",
+                "search"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4. Get Segment By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/segments/{{segmentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "segments",
+                "{{segmentId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "5. Delete Segment",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/segments/{{segmentId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "segments",
+                "{{segmentId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "6. Add Contact To Segment",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/segments/{{segmentId}}/contacts/{{contactId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "segments",
+                "{{segmentId}}",
                 "contacts",
-                "upload"
+                "{{contactId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "7. Remove Contact From Segment",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/segments/{{segmentId}}/contacts/{{contactId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "segments",
+                "{{segmentId}}",
+                "contacts",
+                "{{contactId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "8. Get Contacts In Segment",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/segments/{{segmentId}}/contacts?page=0&size=10",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "segments",
+                "{{segmentId}}",
+                "contacts"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "0"
+                },
+                {
+                  "key": "size",
+                  "value": "10"
+                }
               ]
             }
           },
@@ -202,7 +365,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Spring Sale 2026\",\n  \"type\": \"IMMEDIATE\",\n  \"contactIds\": [1, 2, 3],\n  \"messageType\": \"TEXT\",\n  \"messageContent\": \"Hello! Check out our new spring collection.\"\n}",
+              "raw": "{\n  \"name\": \"Spring Sale 2026\",\n  \"type\": \"IMMEDIATE\",\n  \"contactIds\": [1, 2, 3],\n  \"segmentIds\": [1],\n  \"messageType\": \"TEXT\",\n  \"messageContent\": \"Hello! Check out our new spring collection.\"\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -232,6 +395,11 @@
     },
     {
       "key": "contactId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "segmentId",
       "value": "1",
       "type": "string"
     }

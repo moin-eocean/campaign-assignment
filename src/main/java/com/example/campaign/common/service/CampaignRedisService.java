@@ -1,15 +1,23 @@
 package com.example.campaign.common.service;
 
 import com.example.campaign.campaign.entity.CampaignMessage;
+import com.example.campaign.campaign.entity.CampaignSegment;
 import com.example.campaign.campaign.enums.CampaignStatus;
 import com.example.campaign.campaign.repository.CampaignContactRepository;
 import com.example.campaign.campaign.repository.CampaignMessageRepository;
+import com.example.campaign.campaign.repository.CampaignSegmentRepository;
 import com.example.campaign.common.constant.Constants;
+import com.example.campaign.contact.entity.Contact;
+import com.example.campaign.contact.repository.ContactRepository;
+import com.example.campaign.segment.entity.SegmentContact;
+import com.example.campaign.segment.repository.SegmentContactRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 @Slf4j
@@ -20,6 +28,9 @@ public class CampaignRedisService {
     private final RedisTemplate<String, String> redisTemplate;
     private final CampaignContactRepository campaignContactRepository;
     private final CampaignMessageRepository campaignMessageRepository;
+    private final CampaignSegmentRepository campaignSegmentRepository;
+    private final SegmentContactRepository segmentContactRepository;
+    private final ContactRepository contactRepository;
 
     public void loadCampaignDataIntoRedis(Long campaignId) {
         log.info("[Redis Preload] Starting data preload for campaignId={}", campaignId);
@@ -32,25 +43,67 @@ public class CampaignRedisService {
     }
 
     private void loadContacts(Long campaignId) {
-        String redisKey = String.format(Constants.REDIS_CONTACTS_KEY, campaignId);
+        String contactsKey = String.format(Constants.REDIS_CONTACTS_KEY, campaignId);
 
-        Long existingCount = redisTemplate.opsForList().size(redisKey);
+        // Idempotency check
+        Long existingCount = redisTemplate.opsForList().size(contactsKey);
         if (existingCount != null && existingCount > 0) {
-            log.warn("[Redis Preload] Contacts already exist in Redis for campaignId={}, skipping.", campaignId);
+            log.warn("[Redis Preload] Contacts already in Redis for campaignId={}, skipping.", campaignId);
             return;
         }
 
-        List<String> phoneNumbers = campaignContactRepository
-                .findPhoneNumbersByCampaignId(campaignId);  // Custom query — neeche dekho
+        // ── Step 1: Segment contacts ──────────────────────────
+        LinkedHashSet<Long> allContactIds = new LinkedHashSet<>();
 
-        if (phoneNumbers.isEmpty()) {
-            log.warn("[Redis Preload] No contacts found in DB for campaignId={}", campaignId);
+        List<CampaignSegment> segments = campaignSegmentRepository
+                .findAllByCampaignId(campaignId);
+
+        for (CampaignSegment cs : segments) {
+            List<SegmentContact> segmentContacts = segmentContactRepository
+                    .findAllBySegmentId(cs.getSegment().getId());
+            for (SegmentContact sc : segmentContacts) {
+                allContactIds.add(sc.getContact().getId());
+            }
+        }
+
+        log.info("[Redis Preload] {} unique contact IDs from segments for campaignId={}",
+                allContactIds.size(), campaignId);
+
+        // ── Step 2: Direct campaign contacts ──────────────────
+        List<Long> directContactIds = campaignContactRepository
+                .findContactIdsByCampaignId(campaignId);   // custom query — see below
+
+        allContactIds.addAll(directContactIds);
+
+        log.info("[Redis Preload] {} total unique contact IDs (segments + direct) for campaignId={}",
+                allContactIds.size(), campaignId);
+
+        if (allContactIds.isEmpty()) {
+            log.warn("[Redis Preload] No contacts found for campaignId={}", campaignId);
             return;
         }
 
-        redisTemplate.opsForList().rightPushAll(redisKey, phoneNumbers);
+        // ── Step 3: Fetch phone numbers ───────────────────────
+        List<Contact> contacts = contactRepository
+                .findAllById(new ArrayList<>(allContactIds));
 
-        log.info("[Redis Preload] Loaded {} contacts into Redis for campaignId={}", phoneNumbers.size(), campaignId);
+        List<String> phoneNumbers = contacts.stream()
+                .map(Contact::getPhone)
+                .toList();
+
+        // ── Step 4: Push to Redis LIST ────────────────────────
+        redisTemplate.opsForList().rightPushAll(contactsKey, phoneNumbers);
+
+        log.info("[Redis Preload] {} phone numbers pushed to Redis for campaignId={}",
+                phoneNumbers.size(), campaignId);
+
+        // ── Step 5: Initialize stats HASH ─────────────────────
+        String statsKey = String.format(Constants.REDIS_STATS_KEY, campaignId);
+        redisTemplate.opsForHash().put(statsKey, "total", String.valueOf(phoneNumbers.size()));
+        redisTemplate.opsForHash().put(statsKey, "sent", "0");
+        redisTemplate.opsForHash().put(statsKey, "failed", "0");
+
+        log.info("[Redis Preload] Stats initialized for campaignId={}", campaignId);
     }
 
     private void loadMessage(Long campaignId) {

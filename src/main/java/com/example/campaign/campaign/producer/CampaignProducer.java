@@ -1,6 +1,7 @@
 package com.example.campaign.campaign.producer;
 
 import com.example.campaign.common.config.RabbitMQConfig;
+import com.example.campaign.common.constant.Constants;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -15,8 +16,8 @@ public class CampaignProducer {
 
     public void sendCampaign(Long campaignId) {
         rabbitTemplate.convertAndSend(
-                RabbitMQConfig.CAMPAIGN_EXCHANGE,
-                RabbitMQConfig.CAMPAIGN_ROUTING_KEY,
+                Constants.CAMPAIGN_EXCHANGE,
+                Constants.CAMPAIGN_ROUTING_KEY,
                 campaignId
         );
         log.info("Campaign sent: {}", campaignId);

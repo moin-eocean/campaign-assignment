@@ -1,5 +1,6 @@
 package com.example.campaign.common.config;
 
+import com.example.campaign.common.constant.Constants;
 import org.springframework.amqp.core.*;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
@@ -12,22 +13,16 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class RabbitMQConfig {
 
-
-    public static final String CAMPAIGN_QUEUE = "campaign.queue";
-    public static final String CAMPAIGN_EXCHANGE = "campaign.exchange";
-    public static final String CAMPAIGN_ROUTING_KEY = "campaign.routing.key";
-
-
     @Bean
     public Queue campaignQueue() {
         return QueueBuilder
-                .durable(CAMPAIGN_QUEUE)
+                .durable(Constants.CAMPAIGN_QUEUE)
                 .build();
     }
 
     @Bean
     public DirectExchange campaignExchange() {
-        return new DirectExchange(CAMPAIGN_EXCHANGE);
+        return new DirectExchange(Constants.CAMPAIGN_EXCHANGE);
     }
 
     @Bean
@@ -35,7 +30,7 @@ public class RabbitMQConfig {
         return BindingBuilder
                 .bind(campaignQueue)
                 .to(campaignExchange)
-                .with(CAMPAIGN_ROUTING_KEY);
+                .with(Constants.CAMPAIGN_ROUTING_KEY);
     }
 
     @Bean

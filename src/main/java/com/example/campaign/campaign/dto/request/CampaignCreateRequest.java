@@ -24,7 +24,8 @@ public class CampaignCreateRequest {
 
     private LocalDateTime scheduledAt;
 
-    @NotEmpty(message = "At least one contact ID is required")
+    private List<Long> segmentIds;
+
     private List<Long> contactIds;
 
     @NotNull(message = "Message type is required")

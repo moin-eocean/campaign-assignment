@@ -11,9 +11,19 @@ import com.example.campaign.campaign.producer.CampaignProducer;
 import com.example.campaign.campaign.repository.CampaignContactRepository;
 import com.example.campaign.campaign.repository.CampaignMessageRepository;
 import com.example.campaign.campaign.repository.CampaignRepository;
+import com.example.campaign.campaign.repository.CampaignSegmentRepository;
+import com.example.campaign.campaign.entity.CampaignSegment;
+import com.example.campaign.common.constant.Constants;
+import com.example.campaign.common.exception.ResourceNotFoundException;
+import com.example.campaign.segment.repository.SegmentRepository;
+import com.example.campaign.segment.repository.SegmentContactRepository;
+import com.example.campaign.segment.entity.Segment;
+import com.example.campaign.segment.entity.SegmentContact;
 import com.example.campaign.common.exception.ValidationFailedException;
 import com.example.campaign.contact.entity.Contact;
 import com.example.campaign.contact.repository.ContactRepository;
+import com.example.campaign.scheduler.service.CampaignSchedulerService;
+import com.example.campaign.common.service.CampaignRedisService;
 import com.example.campaign.scheduler.service.CampaignSchedulerService;
 import com.example.campaign.common.service.CampaignRedisService;
 import jakarta.persistence.EntityNotFoundException;
@@ -22,6 +32,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -34,13 +46,21 @@ public class CampaignService {
     private final ContactRepository contactRepository;
     private final CampaignContactRepository campaignContactRepository;
     private final CampaignMessageRepository campaignMessageRepository;
+    private final CampaignSegmentRepository campaignSegmentRepository;
+    private final SegmentRepository segmentRepository;
+    private final SegmentContactRepository segmentContactRepository;
     private final CampaignProducer campaignProducer;
     private final CampaignSchedulerService campaignSchedulerService;
     private final CampaignRedisService campaignRedisService;
+    private final org.springframework.data.redis.core.RedisTemplate<String, String> redisTemplate;
 
     @Transactional
     public CampaignResponse createCampaign(CampaignCreateRequest request) {
         log.info("Creating campaign: {}", request.getName());
+
+        if(request.getSegmentIds().isEmpty() && request.getContactIds().isEmpty()){
+            throw new ValidationFailedException("Segment IDs or Contact IDs are required");
+        }
 
         Campaign campaign = new Campaign();
         campaign.setName(request.getName());
@@ -55,20 +75,38 @@ public class CampaignService {
         message.setContent(request.getMessageContent());
         campaignMessageRepository.save(message);
 
-        List<Contact> contacts = contactRepository.findAllByIdIn(request.getContactIds());
+        // Process segmentIds
         Campaign finalCampaign = campaign;
-        List<CampaignContact> campaignContacts = contacts.stream()
-                .map(contact -> {
-                    CampaignContact campaignContact = new CampaignContact();
-                    campaignContact.setCampaign(finalCampaign);
-                    campaignContact.setContact(contact);
-                    campaignContact.setProcessed(false);
-                    return campaignContact;
-                })
-                .collect(Collectors.toList());
-        campaignContactRepository.saveAll(campaignContacts);
+        if (request.getSegmentIds() != null && !request.getSegmentIds().isEmpty()) {
+            List<Segment> segments = segmentRepository.findAllById(request.getSegmentIds());
+            if (segments.size() != request.getSegmentIds().size()) {
+                throw new ResourceNotFoundException("One or more Segments not found");
+            }
+            List<CampaignSegment> campaignSegments = segments.stream().map(segment -> {
+                CampaignSegment cs = new CampaignSegment();
+                cs.setCampaign(finalCampaign);
+                cs.setSegment(segment);
+                return cs;
+            }).collect(Collectors.toList());
+            campaignSegmentRepository.saveAll(campaignSegments);
+        }
 
-        log.info("Campaign created successfully with ID: {} and {} contacts", campaign.getId(), contacts.size());
+        // Process contactIds
+        if (request.getContactIds() != null && !request.getContactIds().isEmpty()) {
+            List<Contact> contacts = contactRepository.findAllByIdIn(request.getContactIds());
+            if (contacts.size() != request.getContactIds().size()) {
+                throw new ResourceNotFoundException("One or more Contacts not found");
+            }
+            List<CampaignContact> campaignContacts = contacts.stream().map(contact -> {
+                CampaignContact cc = new CampaignContact();
+                cc.setCampaign(finalCampaign);
+                cc.setContact(contact);
+                return cc;
+            }).collect(Collectors.toList());
+            campaignContactRepository.saveAll(campaignContacts);
+        }
+
+        log.info("Campaign created successfully with ID: {}", campaign.getId());
 
         if (campaign.getType().equals(CampaignType.IMMEDIATE)) {
             try {
@@ -96,7 +134,7 @@ public class CampaignService {
     @Transactional
     public void executeCampaign(Long campaignId) {
         log.info("[CampaignService] Executing campaign execution sequence for campaignId={}", campaignId);
-        
+
         Campaign campaign = campaignRepository.findById(campaignId)
                 .orElseThrow(() -> new EntityNotFoundException("Campaign not found with ID: " + campaignId));
 
