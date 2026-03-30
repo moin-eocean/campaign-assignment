@@ -6,7 +6,7 @@ import lombok.*;
 import lombok.experimental.FieldNameConstants;
 
 @Entity
-@Table(name = "campaign_message")
+@Table(name = "campaign_messages")
 @Getter
 @Setter
 @FieldNameConstants

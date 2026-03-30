@@ -6,7 +6,7 @@ import lombok.*;
 import lombok.experimental.FieldNameConstants;
 
 @Entity
-@Table(name = "campaign_segment", uniqueConstraints = @UniqueConstraint(columnNames = {"campaign_id", "segment_id"}))
+@Table(name = "campaign_segments", uniqueConstraints = @UniqueConstraint(columnNames = {"campaign_id", "segment_id"}))
 @Getter
 @Setter
 @FieldNameConstants

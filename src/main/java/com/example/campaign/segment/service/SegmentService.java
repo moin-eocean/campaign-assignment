@@ -1,6 +1,8 @@
 package com.example.campaign.segment.service;
 
 import com.example.campaign.campaign.repository.CampaignSegmentRepository;
+
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import com.example.campaign.common.exception.DuplicateResourceException;
 import com.example.campaign.common.exception.FileProcessingException;
@@ -8,7 +10,13 @@ import com.example.campaign.common.exception.ResourceNotFoundException;
 import com.example.campaign.common.exception.ValidationFailedException;
 import com.example.campaign.common.response.PagedResponse;
 import com.example.campaign.contact.dto.request.ContactCreateRequest;
-import com.example.campaign.contact.dto.response.BulkImportResponse;
+import com.example.campaign.segment.enums.ImportStatus;
+import com.example.campaign.segment.repository.BulkContactInsertRepository;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.util.concurrent.ConcurrentHashMap;
+
 import com.example.campaign.contact.dto.response.ContactResponse;
 import com.example.campaign.contact.dto.response.RowError;
 import com.example.campaign.contact.entity.Contact;
@@ -35,10 +43,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.ByteArrayInputStream;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -54,93 +58,190 @@ public class SegmentService {
     private final ContactRepository contactRepository;
     private final CsvContactParser csvParser;
     private final ExcelContactParser excelParser;
+    private final BulkContactInsertRepository bulkInsertRepository;
+    private final ProgressTrackingService progressTrackingService;
 
-    private static final Pattern PHONE_PATTERN = Pattern.compile("^[0-9]{11}$");
+    private static final Pattern PHONE_PATTERN = Pattern.compile("^[0-9]{10,15}$");
 
-    @Async
-    public CompletableFuture<BulkImportResponse> upload(MultipartFile file, String segmentName) {
-
+    @Async("uploadTaskExecutor")
+    public CompletableFuture<String> upload(MultipartFile file, String segmentName) {
+    
+        String jobId = UUID.randomUUID().toString();
+    
         try {
             byte[] fileBytes = file.getBytes();
             String originalFilename = file.getOriginalFilename();
-
-            return CompletableFuture.completedFuture(processFile(fileBytes, originalFilename, segmentName));
+    
+            // Parse to get totalRows for progress init
+            List<ContactCreateRequest> rows = parseFile(
+                new ByteArrayInputStream(fileBytes), originalFilename
+            );
+    
+            String finalSegmentName = (segmentName != null && !segmentName.isBlank())
+                ? segmentName
+                : "Import - " + LocalDate.now();
+    
+            // Init Redis — status: QUEUED
+            progressTrackingService.init(jobId, finalSegmentName, rows.size());
+    
+            // Create Segment in DB immediately — status: PROCESSING
+            Segment segment = new Segment();
+            segment.setName(finalSegmentName);
+            segment.setImportStatus(ImportStatus.PROCESSING);
+            segment = segmentRepository.save(segment);
+    
+            // Process chunks in background
+            processInChunks(jobId, rows, segment);
+    
         } catch (Exception ex) {
-            log.error("Failed to process file upload", ex);
-            CompletableFuture<BulkImportResponse> future = new CompletableFuture<>();
-            future.completeExceptionally(new FileProcessingException("Failed to process file upload", ex));
-            return future;
+            log.error("Upload initiation failed. jobId: {}", jobId, ex);
+            progressTrackingService.markFailed(jobId, ex.getMessage());
+        }
+    
+        return CompletableFuture.completedFuture(jobId);
+    }
+
+    private void processInChunks(String jobId, List<ContactCreateRequest> rows, Segment segment) {
+    
+        final int CHUNK_SIZE = 1500;
+        final int totalRows = rows.size();
+    
+        List<RowError> allErrors = new ArrayList<>();
+        List<Long> allInsertedIds = new ArrayList<>();
+    
+        int processedRows = 0;
+        Set<String> seenPhones = ConcurrentHashMap.newKeySet(); // in-file dedup
+    
+        List<List<ContactCreateRequest>> chunks = partition(rows, CHUNK_SIZE);
+    
+        try {
+            for (List<ContactCreateRequest> chunk : chunks) {
+    
+                List<RowError> chunkErrors = new ArrayList<>();
+                List<Contact> chunkContacts = new ArrayList<>();
+    
+                for (ContactCreateRequest row : chunk) {
+                    try {
+                        validate(row);
+    
+                        if (!seenPhones.add(row.getPhone())) {
+                            throw new DuplicateResourceException("Contact", "phone", row.getPhone());
+                        }
+    
+                        Contact c = new Contact();
+                        c.setName(row.getName());
+                        c.setPhone(row.getPhone());
+                        chunkContacts.add(c);
+    
+                    } catch (Exception ex) {
+                        chunkErrors.add(new RowError(processedRows + 1, ex.getMessage()));
+                    }
+                    processedRows++;
+                }
+
+                // ✅ Existing contacts ke IDs yahan aayenge
+                List<Long> existingIds = new ArrayList<>();
+                removeDbDuplicatesChunked(chunkContacts, chunkErrors, existingIds);
+
+                // New contacts insert karo → new IDs
+                List<Long> newIds = bulkInsertRepository
+                        .batchInsertContactsAndGetIds(chunkContacts);
+
+                // ✅ Dono merge karo — new + existing
+                List<Long> chunkIds = new ArrayList<>();
+                chunkIds.addAll(newIds);
+                chunkIds.addAll(existingIds);
+    
+                // Step 2 — INSERT segment_contacts using captured IDs (no SELECT)
+                bulkInsertRepository
+                    .batchInsertSegmentContacts(segment.getId(), chunkIds);
+
+                allInsertedIds.addAll(chunkIds);
+                allErrors.addAll(chunkErrors);
+    
+                // Update Redis after every chunk
+                progressTrackingService.updateProgress(
+                    jobId,
+                    processedRows,
+                    allInsertedIds.size(),
+                    allErrors.size(),
+                    totalRows,
+                    chunkErrors
+                );
+    
+                log.info("JobId: {} | Progress: {}/{} | Success: {} | Failed: {}",
+                    jobId, processedRows, totalRows, allInsertedIds.size(), allErrors.size());
+            }
+    
+            // Save final stats to Segment in DB (permanent record)
+            segment.setTotalRows(totalRows);
+            segment.setSuccessCount(allInsertedIds.size());
+            segment.setFailedCount(allErrors.size());
+            segment.setImportStatus(ImportStatus.COMPLETED);
+            segment.setCompletedAt(LocalDateTime.now());
+            segmentRepository.save(segment);
+    
+            // Mark Redis job complete
+            progressTrackingService.markCompleted(
+                jobId,
+                segment.getId(),
+                segment.getName(),
+                totalRows,
+                allInsertedIds.size(),
+                allErrors.size()
+            );
+    
+            log.info("JobId: {} | Upload COMPLETED | Success: {} | Failed: {}",
+                jobId, allInsertedIds.size(), allErrors.size());
+    
+        } catch (Exception ex) {
+            log.error("JobId: {} | Upload FAILED", jobId, ex);
+    
+            segment.setImportStatus(ImportStatus.FAILED);
+            segment.setCompletedAt(LocalDateTime.now());
+            segmentRepository.save(segment);
+    
+            progressTrackingService.markFailed(jobId, ex.getMessage());
         }
     }
 
-    private BulkImportResponse processFile(byte[] fileBytes, String originalFilename, String segmentName) {
-        List<RowError> errors = new ArrayList<>();
-        List<Contact> validContacts = new ArrayList<>();
+    private void removeDbDuplicatesChunked(List<Contact> contacts,
+                                           List<RowError> errors,
+                                           List<Long> existingContactIds) { // ← new param
+        if (contacts.isEmpty()) return;
 
-        try {
-            List<ContactCreateRequest> rows = parseFile(new ByteArrayInputStream(fileBytes), originalFilename);
+        int chunkSize = 1000;
+        List<String> allPhones = contacts.stream().map(Contact::getPhone).toList();
 
-            Set<String> phoneSet = new HashSet<>();
-            int rowNumber = 1;
+        Map<String, Long> existingPhoneToId = new HashMap<>(); // phone → id
 
-            for (ContactCreateRequest row : rows) {
-                try {
-                    validate(row);
-                    if (phoneSet.contains(row.getPhone())) {
-                        throw new DuplicateResourceException("Contact", "phone", row.getPhone());
-                    }
-                    phoneSet.add(row.getPhone());
-
-                    Contact contact = new Contact();
-                    contact.setName(row.getName());
-                    contact.setPhone(row.getPhone());
-                    validContacts.add(contact);
-
-                } catch (Exception ex) {
-                    errors.add(new RowError(rowNumber, ex.getMessage()));
-                }
-                rowNumber++;
-            }
-
-            removeDbDuplicates(validContacts, errors);
-
-            // Create a new Segment
-            String finalSegmentName = (segmentName != null && !segmentName.isBlank())
-                    ? segmentName
-                    : "Import - " + java.time.LocalDate.now().toString();
-            Segment segment = new Segment();
-            segment.setName(finalSegmentName);
-            segment = segmentRepository.save(segment);
-
-            // Save contacts
-            validContacts = contactRepository.saveAll(validContacts);
-
-            // Generate SegmentContacts
-            Segment finalSegment = segment;
-            List<SegmentContact> segmentContacts = validContacts.stream().map(c -> {
-                SegmentContact sc = new SegmentContact();
-                sc.setSegment(finalSegment);
-                sc.setContact(c);
-                return sc;
-            }).toList();
-            segmentContactRepository.saveAll(segmentContacts);
-
-            log.info("Upload completed. Total: {}, Success: {}, Failed: {}",
-                    rows.size(), validContacts.size(), errors.size());
-
-            return BulkImportResponse.builder()
-                    .totalRows(rows.size())
-                    .successCount(validContacts.size())
-                    .failedCount(errors.size())
-                    .errors(errors)
-                    .segmentId(segment.getId())
-                    .segmentName(segment.getName())
-                    .build();
-
-        } catch (Exception ex) {
-            log.error("File processing failed", ex);
-            throw new FileProcessingException("File processing failed", ex);
+        for (int i = 0; i < allPhones.size(); i += chunkSize) {
+            List<String> chunk = allPhones.subList(i, Math.min(i + chunkSize, allPhones.size()));
+            contactRepository.findByPhoneIn(chunk)
+                    .forEach(c -> existingPhoneToId.put(c.getPhone(), c.getId())); // ← ID bhi capture
         }
+
+        contacts.removeIf(contact -> {
+            if (existingPhoneToId.containsKey(contact.getPhone())) {
+
+                // ✅ Contacts table mein dobara insert mat karo
+                // ✅ Lekin existing ID capture karo — segment_contacts mein jayega
+                existingContactIds.add(existingPhoneToId.get(contact.getPhone()));
+
+                // Error nahi — ye valid case hai, bas already exist karta hai
+                return true;
+            }
+            return false;
+        });
+    }
+    
+    private <T> List<List<T>> partition(List<T> list, int size) {
+        if (list == null) return Collections.emptyList();
+        List<List<T>> result = new ArrayList<>();
+        for (int i = 0; i < list.size(); i += size) {
+            result.add(list.subList(i, Math.min(i + size, list.size())));
+        }
+        return result;
     }
 
     private List<ContactCreateRequest> parseFile(java.io.InputStream inputStream, String name) throws Exception {
@@ -165,35 +266,6 @@ public class SegmentService {
         if (!PHONE_PATTERN.matcher(row.getPhone()).matches()) {
             throw new ValidationFailedException("Invalid phone format");
         }
-    }
-
-    private void removeDbDuplicates(List<Contact> contacts,
-                                    List<RowError> errors) {
-
-        List<String> phones = contacts
-                .stream()
-                .map(Contact::getPhone)
-                .toList();
-
-        List<Contact> existing = contactRepository.findByPhoneIn(phones);
-
-        Set<String> existingPhones = existing
-                .stream()
-                .map(Contact::getPhone)
-                .collect(Collectors.toSet());
-
-        contacts.removeIf(contact -> {
-
-            if (existingPhones.contains(contact.getPhone())) {
-
-                errors.add(new RowError(0,
-                        "Phone already exists in DB: " + contact.getPhone()));
-
-                return true;
-            }
-
-            return false;
-        });
     }
 
     public List<SegmentResponse> findAll() {

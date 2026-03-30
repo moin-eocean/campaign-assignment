@@ -4,7 +4,9 @@ import java.util.concurrent.CompletableFuture;
 
 import com.example.campaign.common.response.ApiResponse;
 import com.example.campaign.common.response.PagedResponse;
-import com.example.campaign.contact.dto.response.BulkImportResponse;
+import com.example.campaign.segment.dto.response.UploadJobStatus;
+import com.example.campaign.segment.service.ProgressTrackingService;
+import java.util.Map;
 import com.example.campaign.contact.dto.response.ContactResponse;
 import com.example.campaign.segment.dto.request.CreateSegmentRequest;
 import com.example.campaign.segment.dto.request.SegmentSearchRequest;
@@ -27,13 +29,32 @@ import java.util.List;
 public class SegmentController {
 
     private final SegmentService segmentService;
+    private final ProgressTrackingService progressTrackingService;
 
-    @PostMapping()
-    public CompletableFuture<ResponseEntity<ApiResponse<BulkImportResponse>>> upload(
+    @PostMapping("/upload")
+    public ResponseEntity<Map<String, String>> upload(
             @RequestParam("file") MultipartFile file,
-            @RequestParam(value = "segmentName", required = false) String segmentName) {
-        return segmentService.upload(file, segmentName)
-                .thenApply(response -> ResponseEntity.ok(ApiResponse.success(response)));
+            @RequestParam(value = "segmentName", required = false) String segmentName) throws Exception {
+    
+        CompletableFuture<String> future = segmentService.upload(file, segmentName);
+        String jobId = future.get(); // get jobId only — processing is async
+    
+        return ResponseEntity.accepted().body(Map.of(
+            "jobId", jobId,
+            "message", "Upload started. Poll progress endpoint for status.",
+            "progressUrl", "/segments/upload/" + jobId + "/progress"
+        ));
+    }
+
+    @GetMapping("/upload/{jobId}/progress")
+    public ResponseEntity<UploadJobStatus> getUploadProgress(@PathVariable String jobId) {
+       UploadJobStatus status = progressTrackingService.get(jobId);
+    
+        if (status == null) {
+            return ResponseEntity.notFound().build();
+        }
+    
+        return ResponseEntity.ok(status);
     }
 
     @GetMapping

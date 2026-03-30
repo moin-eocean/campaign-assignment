@@ -30,7 +30,7 @@ public class DummyWhatsAppApiClient implements WhatsAppApiClient {
 
     @Override
     public SendResult send(String phoneNumber, String messageJson) {
-        long delayMs = 500;
+        long delayMs = 1200;
         log.debug("[DummyWhatsApp] Sending to {} — simulated delay {}ms", phoneNumber, delayMs);
 
         try {

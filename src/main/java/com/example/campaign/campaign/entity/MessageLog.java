@@ -7,7 +7,7 @@ import lombok.experimental.FieldNameConstants;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "message_log")
+@Table(name = "message_logs")
 @Getter
 @Setter
 @FieldNameConstants

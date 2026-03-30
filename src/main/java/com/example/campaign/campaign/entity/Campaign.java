@@ -11,7 +11,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "campaign")
+@Table(name = "campaigns")
 @Getter
 @Setter
 @FieldNameConstants
