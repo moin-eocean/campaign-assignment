@@ -32,9 +32,6 @@ public class ContactService {
 
     private final ContactRepository contactRepository;
 
-    private final SegmentRepository segmentRepository;
-    private final SegmentContactRepository segmentContactRepository;
-
     public ContactResponse create(ContactCreateRequest request) {
         log.info("Creating contact{}{}", request.getName(), request.getPhone());
         boolean isNumberExist = contactRepository.existsByPhone(request.getPhone());

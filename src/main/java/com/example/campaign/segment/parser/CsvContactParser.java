@@ -21,13 +21,10 @@ public class CsvContactParser implements ContactFileParser {
     @Override
     public List<ContactCreateRequest> parse(InputStream inputStream) throws Exception {
 
-        // 1. Read entire file as string
         String rawContent = new String(inputStream.readAllBytes());
 
-        // 2. Clean the header row
         String cleanedContent = cleanHeaders(rawContent);
 
-        // 3. Parse normally
         List<ContactCreateRequest> contacts = new ArrayList<>();
 
         Iterable<CSVRecord> records = CSVFormat.DEFAULT.builder()
@@ -49,23 +46,20 @@ public class CsvContactParser implements ContactFileParser {
     }
 
     private String cleanHeaders(String csvContent) throws IOException {
-        // Split into header line + rest of file
         int newlineIndex = csvContent.indexOf('\n');
         if (newlineIndex == -1) {
             throw new IllegalArgumentException("CSV file appears to be empty or has no data rows");
         }
 
         String headerLine = csvContent.substring(0, newlineIndex);
-        String dataLines  = csvContent.substring(newlineIndex); // keeps the \n
+        String dataLines  = csvContent.substring(newlineIndex);
 
-        // Remove empty columns and junk characters from header
         String cleanedHeader = Arrays.stream(headerLine.split(","))
                 .map(String::trim)
-                .map(h -> h.replaceAll("[`~\\[\\]]", "")) // strip backticks and other junk
+                .map(h -> h.replaceAll("[`~\\[\\]]", ""))
                 .filter(h -> !h.isEmpty())
                 .collect(Collectors.joining(","));
 
-        // Validate required headers are present
         List<String> presentHeaders = Arrays.asList(cleanedHeader.split(","));
         REQUIRED_HEADERS.forEach(required -> {
             if (!presentHeaders.contains(required)) {

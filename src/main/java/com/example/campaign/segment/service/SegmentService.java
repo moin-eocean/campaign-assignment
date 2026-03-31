@@ -72,7 +72,6 @@ public class SegmentService {
             byte[] fileBytes = file.getBytes();
             String originalFilename = file.getOriginalFilename();
     
-            // Parse to get totalRows for progress init
             List<ContactCreateRequest> rows = parseFile(
                 new ByteArrayInputStream(fileBytes), originalFilename
             );
@@ -81,16 +80,13 @@ public class SegmentService {
                 ? segmentName
                 : "Import - " + LocalDate.now();
     
-            // Init Redis — status: QUEUED
             progressTrackingService.init(jobId, finalSegmentName, rows.size());
     
-            // Create Segment in DB immediately — status: PROCESSING
             Segment segment = new Segment();
             segment.setName(finalSegmentName);
             segment.setImportStatus(ImportStatus.PROCESSING);
             segment = segmentRepository.save(segment);
     
-            // Process chunks in background
             processInChunks(jobId, rows, segment);
     
         } catch (Exception ex) {
@@ -110,7 +106,7 @@ public class SegmentService {
         List<Long> allInsertedIds = new ArrayList<>();
     
         int processedRows = 0;
-        Set<String> seenPhones = ConcurrentHashMap.newKeySet(); // in-file dedup
+        Set<String> seenPhones = ConcurrentHashMap.newKeySet();
     
         List<List<ContactCreateRequest>> chunks = partition(rows, CHUNK_SIZE);
     
@@ -139,27 +135,22 @@ public class SegmentService {
                     processedRows++;
                 }
 
-                // ✅ Existing contacts ke IDs yahan aayenge
                 List<Long> existingIds = new ArrayList<>();
                 removeDbDuplicatesChunked(chunkContacts, chunkErrors, existingIds);
 
-                // New contacts insert karo → new IDs
                 List<Long> newIds = bulkInsertRepository
                         .batchInsertContactsAndGetIds(chunkContacts);
 
-                // ✅ Dono merge karo — new + existing
                 List<Long> chunkIds = new ArrayList<>();
                 chunkIds.addAll(newIds);
                 chunkIds.addAll(existingIds);
     
-                // Step 2 — INSERT segment_contacts using captured IDs (no SELECT)
                 bulkInsertRepository
                     .batchInsertSegmentContacts(segment.getId(), chunkIds);
 
                 allInsertedIds.addAll(chunkIds);
                 allErrors.addAll(chunkErrors);
     
-                // Update Redis after every chunk
                 progressTrackingService.updateProgress(
                     jobId,
                     processedRows,
@@ -173,7 +164,6 @@ public class SegmentService {
                     jobId, processedRows, totalRows, allInsertedIds.size(), allErrors.size());
             }
     
-            // Save final stats to Segment in DB (permanent record)
             segment.setTotalRows(totalRows);
             segment.setSuccessCount(allInsertedIds.size());
             segment.setFailedCount(allErrors.size());
@@ -181,7 +171,6 @@ public class SegmentService {
             segment.setCompletedAt(LocalDateTime.now());
             segmentRepository.save(segment);
     
-            // Mark Redis job complete
             progressTrackingService.markCompleted(
                 jobId,
                 segment.getId(),
@@ -207,7 +196,7 @@ public class SegmentService {
 
     private void removeDbDuplicatesChunked(List<Contact> contacts,
                                            List<RowError> errors,
-                                           List<Long> existingContactIds) { // ← new param
+                                           List<Long> existingContactIds) {
         if (contacts.isEmpty()) return;
 
         int chunkSize = 1000;
@@ -223,12 +212,7 @@ public class SegmentService {
 
         contacts.removeIf(contact -> {
             if (existingPhoneToId.containsKey(contact.getPhone())) {
-
-                // ✅ Contacts table mein dobara insert mat karo
-                // ✅ Lekin existing ID capture karo — segment_contacts mein jayega
                 existingContactIds.add(existingPhoneToId.get(contact.getPhone()));
-
-                // Error nahi — ye valid case hai, bas already exist karta hai
                 return true;
             }
             return false;

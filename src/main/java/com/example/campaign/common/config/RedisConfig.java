@@ -24,15 +24,10 @@ public class RedisConfig {
 
     @Bean
     public RedisSerializer<Object> jsonSerializer() {
-        Jackson2JsonRedisSerializer<Object> serializer = new Jackson2JsonRedisSerializer<>(Object.class);
-        ObjectMapper mapper = new ObjectMapper();
-        mapper.activateDefaultTyping(
-                LaissezFaireSubTypeValidator.instance,
-                ObjectMapper.DefaultTyping.NON_FINAL
-        );
-        mapper.registerModule(new JavaTimeModule());
-        serializer.setObjectMapper(mapper);
-        return serializer;
+        return org.springframework.data.redis.serializer.GenericJacksonJsonRedisSerializer
+                .builder()
+                .build();
+
     }
 
     @Bean

@@ -5,6 +5,7 @@ import com.example.campaign.segment.dto.response.UploadJobStatus;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
+import tools.jackson.databind.ObjectMapper;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -15,6 +16,7 @@ import java.util.List;
 public class ProgressTrackingService {
 
     private final RedisTemplate<String, Object> redisTemplate;
+    private final ObjectMapper objectMapper;
 
     private static final String KEY_PREFIX = "upload:job:";
     private static final Duration TTL = Duration.ofHours(2);
@@ -89,7 +91,13 @@ public class ProgressTrackingService {
     }
 
     public UploadJobStatus get(String jobId) {
-        return (UploadJobStatus) redisTemplate.opsForValue().get(key(jobId));
+        Object raw = redisTemplate.opsForValue().get(key(jobId));
+
+        if (raw == null) return null;
+
+        if (raw instanceof UploadJobStatus status) return status;
+
+        return objectMapper.convertValue(raw, UploadJobStatus.class);
     }
 
     private void save(String jobId, UploadJobStatus status) {
