@@ -97,6 +97,31 @@ public class SegmentService {
         return CompletableFuture.completedFuture(jobId);
     }
 
+    public Segment createSegmentWithContacts(String name, List<Contact> contacts) {
+        log.info("Creating segment '{}' with {} contacts", name, contacts.size());
+        
+        Segment segment = new Segment();
+        segment.setName(name);
+        segment.setImportStatus(ImportStatus.COMPLETED);
+        segment.setTotalRows(contacts.size());
+        segment.setSuccessCount(contacts.size());
+        segment.setFailedCount(0);
+        segment.setCompletedAt(LocalDateTime.now());
+        segment = segmentRepository.save(segment);
+
+        Segment finalSegment = segment;
+        List<SegmentContact> segmentContacts = contacts.stream().map(contact -> {
+            SegmentContact sc = new SegmentContact();
+            sc.setSegment(finalSegment);
+            sc.setContact(contact);
+            return sc;
+        }).collect(Collectors.toList());
+
+        segmentContactRepository.saveAll(segmentContacts);
+
+        return segment;
+    }
+
     private void processInChunks(String jobId, List<ContactCreateRequest> rows, Segment segment) {
     
         final int CHUNK_SIZE = 1500;

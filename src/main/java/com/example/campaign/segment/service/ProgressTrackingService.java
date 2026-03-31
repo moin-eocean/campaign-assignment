@@ -92,11 +92,8 @@ public class ProgressTrackingService {
 
     public UploadJobStatus get(String jobId) {
         Object raw = redisTemplate.opsForValue().get(key(jobId));
-
         if (raw == null) return null;
-
         if (raw instanceof UploadJobStatus status) return status;
-
         return objectMapper.convertValue(raw, UploadJobStatus.class);
     }
 

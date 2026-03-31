@@ -3,7 +3,6 @@ package com.example.campaign.common.service;
 import com.example.campaign.campaign.entity.CampaignMessage;
 import com.example.campaign.campaign.entity.CampaignSegment;
 import com.example.campaign.campaign.enums.CampaignStatus;
-import com.example.campaign.campaign.repository.CampaignContactRepository;
 import com.example.campaign.campaign.repository.CampaignMessageRepository;
 import com.example.campaign.campaign.repository.CampaignSegmentRepository;
 import com.example.campaign.common.constant.Constants;
@@ -19,6 +18,8 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -26,7 +27,6 @@ import java.util.List;
 public class CampaignRedisService {
 
     private final RedisTemplate<String, String> redisTemplate;
-    private final CampaignContactRepository campaignContactRepository;
     private final CampaignMessageRepository campaignMessageRepository;
     private final CampaignSegmentRepository campaignSegmentRepository;
     private final SegmentContactRepository segmentContactRepository;
@@ -58,24 +58,17 @@ public class CampaignRedisService {
         List<CampaignSegment> segments = campaignSegmentRepository
                 .findAllByCampaignId(campaignId);
 
-        for (CampaignSegment cs : segments) {
-            List<SegmentContact> segmentContacts = segmentContactRepository
-                    .findAllBySegmentId(cs.getSegment().getId());
-            for (SegmentContact sc : segmentContacts) {
-                allContactIds.add(sc.getContact().getId());
-            }
-        }
+        Set<Long> segmentIds = segments.stream()
+                .map(s -> s.getSegment().getId())
+                .collect(Collectors.toSet()); // Set → cleaner
+
+        List<SegmentContact> allSegmentContacts = segmentContactRepository
+                .findAllBySegmentIdIn(segmentIds);
+
+        allSegmentContacts
+                .forEach(segmentContact -> allContactIds.add(segmentContact.getContact().getId()));
 
         log.info("[Redis Preload] {} unique contact IDs from segments for campaignId={}",
-                allContactIds.size(), campaignId);
-
-        // ── Step 2: Direct campaign contacts ──────────────────
-        List<Long> directContactIds = campaignContactRepository
-                .findContactIdsByCampaignId(campaignId);   // custom query — see below
-
-        allContactIds.addAll(directContactIds);
-
-        log.info("[Redis Preload] {} total unique contact IDs (segments + direct) for campaignId={}",
                 allContactIds.size(), campaignId);
 
         if (allContactIds.isEmpty()) {
@@ -84,12 +77,8 @@ public class CampaignRedisService {
         }
 
         // ── Step 3: Fetch phone numbers ───────────────────────
-        List<Contact> contacts = contactRepository
-                .findAllById(new ArrayList<>(allContactIds));
-
-        List<String> phoneNumbers = contacts.stream()
-                .map(Contact::getPhone)
-                .toList();
+        List<String> phoneNumbers = contactRepository
+                .findPhoneNumbersByIdIn(allContactIds);
 
         // ── Step 4: Push to Redis LIST ────────────────────────
         redisTemplate.opsForList().rightPushAll(contactsKey, phoneNumbers);

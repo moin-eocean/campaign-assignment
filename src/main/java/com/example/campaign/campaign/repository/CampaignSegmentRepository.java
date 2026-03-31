@@ -7,7 +7,7 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface CampaignSegmentRepository extends JpaRepository<CampaignSegment, String> {
+public interface CampaignSegmentRepository extends JpaRepository<CampaignSegment, Long> {
 
     List<CampaignSegment> findAllByCampaignId(Long campaignId);
 

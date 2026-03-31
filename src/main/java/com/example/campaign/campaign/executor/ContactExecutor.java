@@ -36,7 +36,6 @@ public class ContactExecutor {
     private final CampaignRepository campaignRepository;
     private final Campaign campaignRef;
 
-    // Shared across main thread + all VTs
     private AtomicReference<String> liveStatusRef;
 
     private final List<MessageLog> logBuffer = Collections.synchronizedList(new ArrayList<>());
@@ -69,11 +68,9 @@ public class ContactExecutor {
 
         liveStatusRef = new AtomicReference<>(CampaignStatus.RUNNING.name());
 
-        // ✅ vtPool — loop ke BAHAR, ek baar banta hai
         try (ExecutorService vtPool = Executors.newThreadPerTaskExecutor(
                 Thread.ofVirtual().name("vt-campaign-" + campaignId + "-", 0).factory())) {
 
-            // ✅ StatusWatcher — loop ke BAHAR, ek platform thread sirf
             Thread statusWatcherThread = Thread.ofPlatform()
                     .name("status-watcher-campaign-" + campaignId)
                     .start(new StatusWatcher(vtPool, campaignId, campaignRedisService, liveStatusRef));
@@ -81,13 +78,11 @@ public class ContactExecutor {
             while (true) {
                 String status = liveStatusRef.get();
 
-                // STOPPED — loop band
                 if (CampaignStatus.STOPPED.name().equals(status)) {
                     log.info("[ContactExecutor] Campaign {} STOPPED. Halting.", campaignId);
                     break;
                 }
 
-                // PAUSED — main thread ruko, VTs submit mat karo
                 if (CampaignStatus.PAUSED.name().equals(status)) {
                     log.debug("[ContactExecutor] Campaign {} PAUSED. Waiting 500ms...", campaignId);
                     try {
@@ -99,7 +94,6 @@ public class ContactExecutor {
                     continue;
                 }
 
-                // ✅ Pehle globalSemaphore acquire — VT creation limit yahan
                 try {
                     globalSemaphore.acquire();
                 } catch (InterruptedException e) {
@@ -107,22 +101,18 @@ public class ContactExecutor {
                     break;
                 }
 
-                // Contact LPOP
                 String phoneNumber = campaignRedisService.lpopContact(campaignId);
 
-                // No more contacts — slot wapis karo aur nikal jao
                 if (phoneNumber == null) {
                     log.info("[ContactExecutor] No more contacts for campaign {}.", campaignId);
                     globalSemaphore.release();
                     break;
                 }
 
-                // ✅ Ek VT = ek contact = ek message
                 final String phone = phoneNumber;
                 vtPool.submit(() -> processContact(phone, messageJson));
             }
 
-            // Saare running VTs khatam honay ka wait karo
             vtPool.shutdown();
             try {
                 if (!vtPool.awaitTermination(10, TimeUnit.MINUTES)) {
@@ -133,7 +123,6 @@ public class ContactExecutor {
                 Thread.currentThread().interrupt();
             }
 
-            // StatusWatcher band karo
             statusWatcherThread.interrupt();
             try {
                 statusWatcherThread.join();
@@ -141,7 +130,7 @@ public class ContactExecutor {
                 Thread.currentThread().interrupt();
             }
 
-        } // vtPool auto-close
+        }
 
         flushLogBuffer();
 
@@ -161,10 +150,8 @@ public class ContactExecutor {
         log.debug("[ContactExecutor] Processing: {} | campaign: {}", phoneNumber, campaignId);
 
         try {
-            // CHECKPOINT A — VT shuru hote hi check
             if (isStopped()) return;
 
-            // CHECKPOINT B — Pause spin-wait
             while (isPaused()) {
                 try {
                     Thread.sleep(500);
@@ -175,7 +162,6 @@ public class ContactExecutor {
                 if (isStopped()) return;
             }
 
-            // CHECKPOINT C — API call se pehle ek aur check
             if (isStopped()) return;
 
             SendResult result = null;
@@ -198,7 +184,7 @@ public class ContactExecutor {
                     TimeUnit.MILLISECONDS.sleep(RETRY_DELAYS_MS[attempt]);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    return; // finally mein release hoga
+                    return;
                 }
 
                 log.debug("[ContactExecutor] Retry {}/{} for {} after {}ms",
@@ -221,7 +207,6 @@ public class ContactExecutor {
             logBuffer.add(buildMessageLog(phoneNumber, result, retryCount));
 
         } finally {
-            // ✅ HAMESHA release — chahe koi bhi return ho upar se
             globalSemaphore.release();
         }
     }
