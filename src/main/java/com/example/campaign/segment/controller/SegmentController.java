@@ -1,20 +1,15 @@
 package com.example.campaign.segment.controller;
 
-import java.util.concurrent.CompletableFuture;
-
 import com.example.campaign.common.response.ApiResponse;
 import com.example.campaign.common.response.PagedResponse;
 import com.example.campaign.segment.dto.response.UploadJobStatus;
 import com.example.campaign.segment.service.ProgressTrackingService;
 import java.util.Map;
 import com.example.campaign.contact.dto.response.ContactResponse;
-import com.example.campaign.segment.dto.request.CreateSegmentRequest;
 import com.example.campaign.segment.dto.request.SegmentSearchRequest;
 import com.example.campaign.segment.dto.response.SegmentResponse;
 import com.example.campaign.segment.service.SegmentService;
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
@@ -36,8 +31,7 @@ public class SegmentController {
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "segmentName", required = false) String segmentName) throws Exception {
     
-        CompletableFuture<String> future = segmentService.upload(file, segmentName);
-        String jobId = future.get(); // get jobId only — processing is async
+        String jobId = segmentService.upload(file, segmentName);
     
         return ResponseEntity.accepted().body(Map.of(
             "jobId", jobId,

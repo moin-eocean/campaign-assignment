@@ -40,6 +40,15 @@ public class ProgressTrackingService {
         save(jobId, status);
     }
 
+    public void updateTotalRows(String jobId, int totalRows) {
+        UploadJobStatus status = get(jobId);
+        if (status == null) return;
+
+        status.setTotalRows(totalRows);
+        status.setStatus(UploadJobStatus.Status.PROCESSING);
+        save(jobId, status);
+    }
+
     public void updateProgress(String jobId, int processedRows,
                                 int successCount, int failedCount,
                                 int totalRows, List<RowError> chunkErrors) {
