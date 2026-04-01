@@ -25,7 +25,7 @@ class StatusWatcher implements Runnable {
     public void run() {
         while (!Thread.currentThread().isInterrupted()) {
             try {
-                Thread.sleep(500);
+                Thread.sleep(200);
 
                 String latest = campaignRedisService.getCampaignStatus(campaignId);
                 String current = liveStatusRef.get();
@@ -36,7 +36,7 @@ class StatusWatcher implements Runnable {
 
                     if (CampaignStatus.STOPPED.name().equals(latest)) {
                         log.info("[StatusWatcher] shutdownNow() for campaign {}", campaignId);
-                        vtPool.shutdownNow(); // parked VTs interrupt ho jayenge
+                        vtPool.shutdownNow();
                         break;
                     }
                 }
