@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit;
  */
 @Slf4j
 @Service
-@Primary // TODO: Change to @Profile("dev") when real WhatsAppApiClient is added
+@Primary
 public class DummyWhatsAppApiClient implements WhatsAppApiClient {
 
     private static final Random RANDOM = new Random();

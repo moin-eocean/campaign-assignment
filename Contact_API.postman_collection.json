@@ -183,12 +183,33 @@
               ]
             },
             "url": {
-              "raw": "{{baseUrl}}/segments",
+              "raw": "{{baseUrl}}/segments/upload",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
-                "segments"
+                "segments",
+                "upload"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "1.1. Get Upload Progress",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/segments/upload/{{jobId}}/progress",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "segments",
+                "upload",
+                "{{jobId}}",
+                "progress"
               ]
             }
           },
@@ -383,6 +404,63 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "2. Pause Campaign",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/campaigns/{{campaignId}}/pause",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaigns",
+                "{{campaignId}}",
+                "pause"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3. Resume Campaign",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/campaigns/{{campaignId}}/resume",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaigns",
+                "{{campaignId}}",
+                "resume"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4. Stop Campaign",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/campaigns/{{campaignId}}/stop",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaigns",
+                "{{campaignId}}",
+                "stop"
+              ]
+            }
+          },
+          "response": []
         }
       ]
     }
@@ -400,6 +478,16 @@
     },
     {
       "key": "segmentId",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "jobId",
+      "value": "123e4567-e89b-12d3-a456-426614174000",
+      "type": "string"
+    },
+    {
+      "key": "campaignId",
       "value": "1",
       "type": "string"
     }

@@ -84,14 +84,8 @@ public class ContactExecutor {
                 }
 
                 if (CampaignStatus.PAUSED.name().equals(status)) {
-                    log.debug("[ContactExecutor] Campaign {} PAUSED. Waiting 500ms...", campaignId);
-                    try {
-                        TimeUnit.MILLISECONDS.sleep(500);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        break;
-                    }
-                    continue;
+                    log.info("[ContactExecutor] Campaign {} PAUSED. Exiting loop — resume will create a new executor.", campaignId);
+                    break;
                 }
 
                 try {
@@ -135,43 +129,23 @@ public class ContactExecutor {
         flushLogBuffer();
 
         String finalStatus = liveStatusRef.get();
-        if (!CampaignStatus.STOPPED.name().equals(finalStatus)) {
+        if (!CampaignStatus.STOPPED.name().equals(finalStatus)
+                && !CampaignStatus.PAUSED.name().equals(finalStatus)) {
             campaignRedisService.setCampaignStatus(campaignId, CampaignStatus.COMPLETED.name());
             campaignRepository.updateStatus(campaignId, CampaignStatus.COMPLETED.name());
             log.info("[ContactExecutor] Campaign {} marked as COMPLETED.", campaignId);
         }
     }
 
-    /**
-     * Ek VT — ek contact — ek message.
-     * globalSemaphore ka release HAMESHA finally mein hoga.
-     */
     private void processContact(String phoneNumber, String messageJson) {
         log.debug("[ContactExecutor] Processing: {} | campaign: {}", phoneNumber, campaignId);
 
         try {
-            if (isStopped()) return;
-
-            while (isPaused()) {
-                try {
-                    Thread.sleep(500);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return; // finally mein release hoga
-                }
-                if (isStopped()) return;
-            }
-
-            if (isStopped()) return;
-
             SendResult result = null;
             int retryCount = 0;
 
             for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-                if (isStopped()) break;
-
                 result = whatsAppApiClient.send(phoneNumber, messageJson);
-
                 if (result.success()) break;
 
                 boolean nonRetryable = NON_RETRYABLE_REASONS.contains(result.failureReason());
@@ -191,15 +165,13 @@ public class ContactExecutor {
                         attempt + 1, MAX_ATTEMPTS - 1, phoneNumber, RETRY_DELAYS_MS[attempt]);
             }
 
-            if (isStopped() && result == null) return;
-
             // Redis stats update
             long now = System.currentTimeMillis() / 1000;
-            if (result != null && result.success()) {
+            if (result.success()) {
                 campaignRedisService.incrementStat(campaignId, "sent");
                 campaignRedisService.markContactSent(campaignId, phoneNumber, now);
             } else {
-                String reason = result != null ? result.failureReason() : "UNKNOWN";
+                String reason = result.failureReason();
                 campaignRedisService.incrementStat(campaignId, "failed");
                 campaignRedisService.markContactFailed(campaignId, phoneNumber, reason + ":" + now);
             }
@@ -239,14 +211,5 @@ public class ContactExecutor {
             log.error("[ContactExecutor] Flush failed for campaign {}: {}", campaignId, e.getMessage());
         }
     }
-
-    private boolean isStopped() {
-        return CampaignStatus.STOPPED.name().equals(liveStatusRef.get());
-    }
-
-    private boolean isPaused() {
-        return CampaignStatus.PAUSED.name().equals(liveStatusRef.get());
-    }
-
 
 }

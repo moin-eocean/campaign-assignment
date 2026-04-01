@@ -22,10 +22,6 @@ public class BulkContactInsertRepository {
     private final JdbcTemplate jdbcTemplate;
     private static final int CHUNK_SIZE = 500;
 
-    /**
-     * Batch INSERT contacts. Returns DB-generated IDs in insertion order.
-     * Uses GeneratedKeyHolder — no extra SELECT needed after insert.
-     */
     public List<Long> batchInsertContactsAndGetIds(List<Contact> contacts) {
         if (contacts.isEmpty()) return Collections.emptyList();
 
@@ -60,10 +56,6 @@ public class BulkContactInsertRepository {
         return allIds;
     }
 
-    /**
-     * Batch INSERT segment_contacts using pre-captured contact IDs.
-     * No SELECT, no JPA — pure JDBC.
-     */
     public void batchInsertSegmentContacts(Long segmentId, List<Long> contactIds) {
         if (contactIds.isEmpty()) return;
 

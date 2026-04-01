@@ -79,6 +79,18 @@ public class GlobalExceptionHandler {
                 .body(ApiResponse.error(ex.getMessage()));
     }
 
+    // ─── 409 Invalid Campaign State Transition ─────────────────────
+    @ExceptionHandler(InvalidCampaignStateException.class)
+    public ResponseEntity<ApiResponse<Void>> handleInvalidCampaignState(
+            InvalidCampaignStateException ex) {
+
+        log.warn("Invalid campaign state transition: {}", ex.getMessage());
+
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(ex.getMessage()));
+    }
+
     // ─── 400 File Processing Error ───────────────────────────────
     @ExceptionHandler(FileProcessingException.class)
     public ResponseEntity<ApiResponse<Void>> handleFileProcessing(

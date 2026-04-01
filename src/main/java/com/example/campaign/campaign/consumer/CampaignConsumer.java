@@ -12,13 +12,6 @@ import org.springframework.stereotype.Component;
 
 import java.util.concurrent.Semaphore;
 
-/**
- * RabbitMQ consumer — entry point for campaign execution.
- * <p>
- * Listens on {@code campaign.queue} with 2–10 concurrent OS threads.
- * Each message triggers a new {@link ContactExecutor} which blocks the consumer
- * thread until the campaign finishes (correct behavior — OS thread blocking is fine).
- */
 @Slf4j
 @Component
 public class CampaignConsumer {

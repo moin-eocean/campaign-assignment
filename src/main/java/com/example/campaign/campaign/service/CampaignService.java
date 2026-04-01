@@ -12,6 +12,7 @@ import com.example.campaign.campaign.repository.CampaignRepository;
 import com.example.campaign.campaign.repository.CampaignSegmentRepository;
 import com.example.campaign.campaign.entity.CampaignSegment;
 import com.example.campaign.common.exception.ResourceNotFoundException;
+import com.example.campaign.common.exception.InvalidCampaignStateException;
 import com.example.campaign.segment.repository.SegmentRepository;
 import com.example.campaign.segment.entity.Segment;
 import com.example.campaign.segment.service.SegmentService;
@@ -23,7 +24,6 @@ import com.example.campaign.common.service.CampaignRedisService;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -134,5 +134,81 @@ public class CampaignService {
         campaignProducer.sendCampaign(campaignId);
 
         log.info("[CampaignService] SUCCESS — campaignId={} published to queue and status updated to RUNNING", campaignId);
+    }
+
+    @Transactional
+    public CampaignResponse pauseCampaign(Long campaignId) {
+        log.info("[CampaignService] Pause requested for campaignId={}", campaignId);
+
+        Campaign campaign = campaignRepository.findById(campaignId)
+                .orElseThrow(() -> new ResourceNotFoundException("Campaign", "id", campaignId));
+
+        if (campaign.getStatus() != CampaignStatus.RUNNING) {
+            throw new InvalidCampaignStateException(
+                    String.format("Cannot pause campaign %d — current status is %s, expected RUNNING",
+                            campaignId, campaign.getStatus()));
+        }
+
+        campaignRedisService.setCampaignStatus(campaignId, CampaignStatus.PAUSED.name());
+
+        campaign.setStatus(CampaignStatus.PAUSED);
+        campaignRepository.save(campaign);
+
+        log.info("[CampaignService] Campaign {} paused successfully", campaignId);
+        return CampaignResponse.toResponse(campaign);
+    }
+
+    @Transactional
+    public CampaignResponse resumeCampaign(Long campaignId) {
+        log.info("[CampaignService] Resume requested for campaignId={}", campaignId);
+
+        Campaign campaign = campaignRepository.findById(campaignId)
+                .orElseThrow(() -> new ResourceNotFoundException("Campaign", "id", campaignId));
+
+        if (campaign.getStatus() == CampaignStatus.STOPPED) {
+            throw new InvalidCampaignStateException(
+                    String.format("Cannot resume campaign %d — campaign has been STOPPED and cannot be restarted",
+                            campaignId));
+        }
+
+        if (campaign.getStatus() != CampaignStatus.PAUSED) {
+            throw new InvalidCampaignStateException(
+                    String.format("Cannot resume campaign %d — current status is %s, expected PAUSED",
+                            campaignId, campaign.getStatus()));
+        }
+
+        campaignRedisService.setCampaignStatus(campaignId, CampaignStatus.RUNNING.name());
+
+        campaign.setStatus(CampaignStatus.RUNNING);
+        campaignRepository.save(campaign);
+
+        campaignProducer.sendCampaign(campaignId);
+
+        log.info("[CampaignService] Campaign {} resumed and re-published to queue", campaignId);
+        return CampaignResponse.toResponse(campaign);
+    }
+
+    @Transactional
+    public CampaignResponse stopCampaign(Long campaignId) {
+        log.info("[CampaignService] Stop requested for campaignId={}", campaignId);
+
+        Campaign campaign = campaignRepository.findById(campaignId)
+                .orElseThrow(() -> new ResourceNotFoundException("Campaign", "id", campaignId));
+
+        CampaignStatus currentStatus = campaign.getStatus();
+
+        if (currentStatus != CampaignStatus.RUNNING && currentStatus != CampaignStatus.PAUSED) {
+            throw new InvalidCampaignStateException(
+                    String.format("Cannot stop campaign %d — current status is %s, expected RUNNING or PAUSED",
+                            campaignId, currentStatus));
+        }
+
+        campaignRedisService.setCampaignStatus(campaignId, CampaignStatus.STOPPED.name());
+
+        campaign.setStatus(CampaignStatus.STOPPED);
+        campaignRepository.save(campaign);
+
+        log.info("[CampaignService] Campaign {} stopped successfully", campaignId);
+        return CampaignResponse.toResponse(campaign);
     }
 }
