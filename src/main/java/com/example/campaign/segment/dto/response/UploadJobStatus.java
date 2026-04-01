@@ -16,7 +16,6 @@ import java.util.List;
 @AllArgsConstructor
 public class UploadJobStatus implements Serializable {
 
-    private String jobId;
     private Status status;
 
     private int totalRows;

@@ -31,7 +31,6 @@ import java.util.regex.Pattern;
 public class SegmentUploadProcessor {
 
     private final SegmentRepository segmentRepository;
-    private final SegmentContactRepository segmentContactRepository;
     private final ContactRepository contactRepository;
     private final CsvContactParser csvParser;
     private final ExcelContactParser excelParser;
@@ -41,29 +40,29 @@ public class SegmentUploadProcessor {
     private static final Pattern PHONE_PATTERN = Pattern.compile("^[0-9]{10,15}$");
 
     @Async("uploadTaskExecutor")
-    public void processUploadAsync(String jobId, byte[] fileBytes, 
+    public void processUploadAsync(Long segmentId, byte[] fileBytes, 
                                     String originalFilename, String segmentName) {
         try {
             List<ContactCreateRequest> rows = parseFile(
                 new ByteArrayInputStream(fileBytes), originalFilename
             );
-            
-            progressTrackingService.updateTotalRows(jobId, rows.size());
 
-            Segment segment = new Segment();
-            segment.setName(segmentName);
+            progressTrackingService.updateTotalRows(segmentId, rows.size());
+
+            Segment segment = segmentRepository.findById(segmentId)
+                .orElseThrow(() -> new RuntimeException("Segment not found: " + segmentId));
             segment.setImportStatus(ImportStatus.PROCESSING);
             segment = segmentRepository.save(segment);
 
-            processInChunks(jobId, rows, segment);
+            processInChunks(segmentId, rows, segment);
 
         } catch (Exception ex) {
-            log.error("Async upload processing failed. jobId: {}", jobId, ex);
-            progressTrackingService.markFailed(jobId, ex.getMessage());
+            log.error("Async upload processing failed. segmentId: {}", segmentId, ex);
+            progressTrackingService.markFailed(segmentId, ex.getMessage());
         }
     }
 
-    private void processInChunks(String jobId, List<ContactCreateRequest> rows, Segment segment) {
+    private void processInChunks(Long segmentId, List<ContactCreateRequest> rows, Segment segment) {
     
         final int CHUNK_SIZE = 1500;
         final int totalRows = rows.size();
@@ -118,7 +117,7 @@ public class SegmentUploadProcessor {
                 allErrors.addAll(chunkErrors);
     
                 progressTrackingService.updateProgress(
-                    jobId,
+                    segmentId,
                     processedRows,
                     allInsertedIds.size(),
                     allErrors.size(),
@@ -126,8 +125,8 @@ public class SegmentUploadProcessor {
                     chunkErrors
                 );
     
-                log.info("JobId: {} | Progress: {}/{} | Success: {} | Failed: {}",
-                    jobId, processedRows, totalRows, allInsertedIds.size(), allErrors.size());
+                log.info("SegmentId: {} | Progress: {}/{} | Success: {} | Failed: {}",
+                    segmentId, processedRows, totalRows, allInsertedIds.size(), allErrors.size());
             }
     
             segment.setTotalRows(totalRows);
@@ -138,25 +137,23 @@ public class SegmentUploadProcessor {
             segmentRepository.save(segment);
     
             progressTrackingService.markCompleted(
-                jobId,
-                segment.getId(),
-                segment.getName(),
+                segmentId,
                 totalRows,
                 allInsertedIds.size(),
                 allErrors.size()
             );
     
-            log.info("JobId: {} | Upload COMPLETED | Success: {} | Failed: {}",
-                jobId, allInsertedIds.size(), allErrors.size());
+            log.info("SegmentId: {} | Upload COMPLETED | Success: {} | Failed: {}",
+                segmentId, allInsertedIds.size(), allErrors.size());
     
         } catch (Exception ex) {
-            log.error("JobId: {} | Upload FAILED", jobId, ex);
+            log.error("SegmentId: {} | Upload FAILED", segmentId, ex);
     
             segment.setImportStatus(ImportStatus.FAILED);
             segment.setCompletedAt(LocalDateTime.now());
             segmentRepository.save(segment);
     
-            progressTrackingService.markFailed(jobId, ex.getMessage());
+            progressTrackingService.markFailed(segmentId, ex.getMessage());
         }
     }
 

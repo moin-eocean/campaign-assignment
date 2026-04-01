@@ -27,22 +27,22 @@ public class SegmentController {
     private final ProgressTrackingService progressTrackingService;
 
     @PostMapping("/upload")
-    public ResponseEntity<Map<String, String>> upload(
+    public ResponseEntity<Map<String, Object>> upload(
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "segmentName", required = false) String segmentName) throws Exception {
     
-        String jobId = segmentService.upload(file, segmentName);
+        Long segmentId = segmentService.upload(file, segmentName);
     
         return ResponseEntity.accepted().body(Map.of(
-            "jobId", jobId,
+            "segmentId", segmentId,
             "message", "Upload started. Poll progress endpoint for status.",
-            "progressUrl", "/segments/upload/" + jobId + "/progress"
+            "progressUrl", "/segments/upload/" + segmentId + "/progress"
         ));
     }
 
-    @GetMapping("/upload/{jobId}/progress")
-    public ResponseEntity<UploadJobStatus> getUploadProgress(@PathVariable String jobId) {
-       UploadJobStatus status = progressTrackingService.get(jobId);
+    @GetMapping("/upload/{segmentId}/progress")
+    public ResponseEntity<UploadJobStatus> getUploadProgress(@PathVariable Long segmentId) {
+       UploadJobStatus status = progressTrackingService.get(segmentId);
     
         if (status == null) {
             return ResponseEntity.notFound().build();

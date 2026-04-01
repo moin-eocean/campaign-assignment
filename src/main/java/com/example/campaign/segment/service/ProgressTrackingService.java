@@ -18,16 +18,16 @@ public class ProgressTrackingService {
     private final RedisTemplate<String, Object> redisTemplate;
     private final ObjectMapper objectMapper;
 
-    private static final String KEY_PREFIX = "upload:job:";
+    private static final String KEY_PREFIX = "upload:segment:";
     private static final Duration TTL = Duration.ofHours(2);
 
-    private String key(String jobId) {
-        return KEY_PREFIX + jobId;
+    private String key(Long segmentId) {
+        return KEY_PREFIX + segmentId;
     }
 
-    public void init(String jobId, String segmentName, int totalRows) {
+    public void init(Long segmentId, String segmentName, int totalRows) {
         UploadJobStatus status = UploadJobStatus.builder()
-            .jobId(jobId)
+            .segmentId(segmentId)
             .status(UploadJobStatus.Status.QUEUED)
             .segmentName(segmentName)
             .totalRows(totalRows)
@@ -37,23 +37,23 @@ public class ProgressTrackingService {
             .percentage(0)
             .errors(new ArrayList<>())
             .build();
-        save(jobId, status);
+        save(segmentId, status);
     }
 
-    public void updateTotalRows(String jobId, int totalRows) {
-        UploadJobStatus status = get(jobId);
+    public void updateTotalRows(Long segmentId, int totalRows) {
+        UploadJobStatus status = get(segmentId);
         if (status == null) return;
 
         status.setTotalRows(totalRows);
         status.setStatus(UploadJobStatus.Status.PROCESSING);
-        save(jobId, status);
+        save(segmentId, status);
     }
 
-    public void updateProgress(String jobId, int processedRows,
+    public void updateProgress(Long segmentId, int processedRows,
                                 int successCount, int failedCount,
                                 int totalRows, List<RowError> chunkErrors) {
 
-        UploadJobStatus status = get(jobId);
+        UploadJobStatus status = get(segmentId);
         if (status == null) return;
 
         int percentage = totalRows > 0
@@ -69,44 +69,42 @@ public class ProgressTrackingService {
             status.getErrors().addAll(chunkErrors);
         }
 
-        save(jobId, status);
+        save(segmentId, status);
     }
 
-    public void markCompleted(String jobId, Long segmentId, String segmentName,
+    public void markCompleted(Long segmentId,
                                int totalRows, int successCount, int failedCount) {
-        UploadJobStatus status = get(jobId);
+        UploadJobStatus status = get(segmentId);
         if (status == null) return;
 
         status.setStatus(UploadJobStatus.Status.COMPLETED);
         status.setPercentage(100);
         status.setProcessedRows(totalRows);
-        status.setSegmentId(segmentId);
-        status.setSegmentName(segmentName);
         status.setTotalRows(totalRows);
         status.setSuccessCount(successCount);
         status.setFailedCount(failedCount);
 
-        save(jobId, status);
+        save(segmentId, status);
     }
 
-    public void markFailed(String jobId, String errorMessage) {
-        UploadJobStatus status = get(jobId);
+    public void markFailed(Long segmentId, String errorMessage) {
+        UploadJobStatus status = get(segmentId);
         if (status == null) return;
 
         status.setStatus(UploadJobStatus.Status.FAILED);
         status.setErrorMessage(errorMessage);
 
-        save(jobId, status);
+        save(segmentId, status);
     }
 
-    public UploadJobStatus get(String jobId) {
-        Object raw = redisTemplate.opsForValue().get(key(jobId));
+    public UploadJobStatus get(Long segmentId) {
+        Object raw = redisTemplate.opsForValue().get(key(segmentId));
         if (raw == null) return null;
         if (raw instanceof UploadJobStatus status) return status;
         return objectMapper.convertValue(raw, UploadJobStatus.class);
     }
 
-    private void save(String jobId, UploadJobStatus status) {
-        redisTemplate.opsForValue().set(key(jobId), status, TTL);
+    private void save(Long segmentId, UploadJobStatus status) {
+        redisTemplate.opsForValue().set(key(segmentId), status, TTL);
     }
 }

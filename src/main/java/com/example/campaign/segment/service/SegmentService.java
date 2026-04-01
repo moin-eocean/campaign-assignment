@@ -5,6 +5,7 @@ import com.example.campaign.campaign.repository.CampaignSegmentRepository;
 
 import java.util.*;
 import com.example.campaign.common.exception.DuplicateResourceException;
+import com.example.campaign.common.exception.FileProcessingException;
 import com.example.campaign.common.exception.ResourceNotFoundException;
 import com.example.campaign.common.response.PagedResponse;
 import com.example.campaign.segment.enums.ImportStatus;
@@ -47,34 +48,33 @@ public class SegmentService {
     private final ProgressTrackingService progressTrackingService;
     private final SegmentUploadProcessor segmentUploadProcessor;
 
-    /**
-     * Synchronous entry point — reads file, generates jobId, and kicks off async processing.
-     * Returns jobId immediately so the controller can respond without blocking.
-     */
-    public String upload(MultipartFile file, String segmentName) {
-    
-        String jobId = UUID.randomUUID().toString();
+    public Long upload(MultipartFile file, String segmentName) {
     
         try {
-            // Read file bytes NOW (synchronously) because MultipartFile
-            // is only available during the HTTP request lifecycle
             byte[] fileBytes = file.getBytes();
             String originalFilename = file.getOriginalFilename();
     
             String finalSegmentName = (segmentName != null && !segmentName.isBlank())
                 ? segmentName
                 : "Import - " + LocalDate.now();
-
-            progressTrackingService.init(jobId, finalSegmentName, 0);
-
-            segmentUploadProcessor.processUploadAsync(jobId, fileBytes, originalFilename, finalSegmentName);
     
+            Segment segment = new Segment();
+            segment.setName(finalSegmentName);
+            segment.setImportStatus(ImportStatus.QUEUED);
+            segment = segmentRepository.save(segment);
+
+            Long segmentId = segment.getId();
+
+            progressTrackingService.init(segmentId, finalSegmentName, 0);
+
+            segmentUploadProcessor.processUploadAsync(segmentId, fileBytes, originalFilename, finalSegmentName);
+    
+            return segmentId;
+
         } catch (Exception ex) {
-            log.error("Upload initiation failed. jobId: {}", jobId, ex);
-            progressTrackingService.markFailed(jobId, ex.getMessage());
+            log.error("Upload initiation failed.", ex);
+            throw new FileProcessingException("Failed to initiate segment upload: " + ex.getMessage());
         }
-    
-        return jobId;
     }
 
     public Segment createSegmentWithContacts(String name, List<Contact> contacts) {
