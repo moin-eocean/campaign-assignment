@@ -34,6 +34,14 @@ public class Campaign {
 
     private LocalDateTime scheduledAt;
 
+    private Integer totalContacts = 0;
+    
+    private Integer sentCount = 0;
+    
+    private Integer failedCount = 0;
+    
+    private LocalDateTime completedAt;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;

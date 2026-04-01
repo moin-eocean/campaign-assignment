@@ -21,5 +21,16 @@ public interface CampaignRepository extends JpaRepository<Campaign, Long>,
     @Modifying
     @Transactional
     @Query("UPDATE Campaign c SET c.status = :status WHERE c.id = :id")
-    void updateStatus(@Param("id") Long id, @Param("status") String status);
+    void updateStatus(@Param("id") Long id, @Param("status") CampaignStatus status);
+
+    @Modifying
+    @Transactional
+    @Query("UPDATE Campaign c SET c.status = :status, c.totalContacts = :total, c.sentCount = :sent, c.failedCount = :failed, c.completedAt = :completedAt WHERE c.id = :id")
+    void updateProgressAndStatus(
+            @Param("id") Long id, 
+            @Param("status") CampaignStatus status, 
+            @Param("total") Integer total, 
+            @Param("sent") Integer sent, 
+            @Param("failed") Integer failed, 
+            @Param("completedAt") LocalDateTime completedAt);
 }

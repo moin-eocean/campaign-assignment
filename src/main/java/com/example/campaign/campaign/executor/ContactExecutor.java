@@ -3,6 +3,7 @@ package com.example.campaign.campaign.executor;
 import com.example.campaign.campaign.entity.Campaign;
 import com.example.campaign.campaign.entity.MessageLog;
 import com.example.campaign.campaign.enums.CampaignStatus;
+import com.example.campaign.campaign.dto.response.CampaignProgressResponse;
 import com.example.campaign.campaign.repository.CampaignRepository;
 import com.example.campaign.campaign.repository.MessageLogRepository;
 import com.example.campaign.common.service.CampaignRedisService;
@@ -132,8 +133,21 @@ public class ContactExecutor {
         if (!CampaignStatus.STOPPED.name().equals(finalStatus)
                 && !CampaignStatus.PAUSED.name().equals(finalStatus)) {
             campaignRedisService.setCampaignStatus(campaignId, CampaignStatus.COMPLETED.name());
-            campaignRepository.updateStatus(campaignId, CampaignStatus.COMPLETED.name());
-            log.info("[ContactExecutor] Campaign {} marked as COMPLETED.", campaignId);
+            
+            CampaignProgressResponse progress = campaignRedisService.getCampaignProgress(campaignId);
+            if (progress != null) {
+                campaignRepository.updateProgressAndStatus(
+                        campaignId, 
+                        CampaignStatus.COMPLETED, 
+                        progress.getTotalContacts(), 
+                        progress.getSentCount(), 
+                        progress.getFailedCount(), 
+                        LocalDateTime.now()
+                );
+            } else {
+                campaignRepository.updateStatus(campaignId, CampaignStatus.COMPLETED);
+            }
+            log.info("[ContactExecutor] Campaign {} marked as COMPLETED with final progress saved.", campaignId);
         }
     }
 
@@ -167,7 +181,7 @@ public class ContactExecutor {
 
             // Redis stats update
             long now = System.currentTimeMillis() / 1000;
-            if (result.success()) {
+            if (result != null && result.success()) {
                 campaignRedisService.incrementStat(campaignId, "sent");
                 campaignRedisService.markContactSent(campaignId, phoneNumber, now);
             } else {

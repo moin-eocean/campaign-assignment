@@ -2,6 +2,7 @@ package com.example.campaign.campaign.service;
 
 import com.example.campaign.campaign.dto.request.CampaignCreateRequest;
 import com.example.campaign.campaign.dto.response.CampaignResponse;
+import com.example.campaign.campaign.dto.response.CampaignProgressResponse;
 import com.example.campaign.campaign.entity.Campaign;
 import com.example.campaign.campaign.entity.CampaignMessage;
 import com.example.campaign.campaign.enums.CampaignStatus;
@@ -210,5 +211,33 @@ public class CampaignService {
 
         log.info("[CampaignService] Campaign {} stopped successfully", campaignId);
         return CampaignResponse.toResponse(campaign);
+    }
+
+    @Transactional(readOnly = true)
+    public CampaignProgressResponse getCampaignProgress(Long campaignId) {
+        CampaignProgressResponse progress = campaignRedisService.getCampaignProgress(campaignId);
+        
+        if (progress == null) {
+            Campaign campaign = campaignRepository.findById(campaignId)
+                    .orElseThrow(() -> new ResourceNotFoundException("Campaign", "id", campaignId));
+
+            int total = campaign.getTotalContacts() != null ? campaign.getTotalContacts() : 0;
+            int sent = campaign.getSentCount() != null ? campaign.getSentCount() : 0;
+            int failed = campaign.getFailedCount() != null ? campaign.getFailedCount() : 0;
+            int processed = sent + failed;
+            int percentage = total > 0 ? (int) ((processed * 100.0) / total) : 0;
+
+            return CampaignProgressResponse.builder()
+                    .campaignId(campaignId)
+                    .status(campaign.getStatus().name())
+                    .totalContacts(total)
+                    .sentCount(sent)
+                    .failedCount(failed)
+                    .processedContacts(processed)
+                    .progressPercentage(percentage)
+                    .build();
+        }
+        
+        return progress;
     }
 }

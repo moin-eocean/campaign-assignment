@@ -201,14 +201,14 @@
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/segments/upload/{{jobId}}/progress",
+              "raw": "{{baseUrl}}/segments/upload/{{segmentId}}/progress",
               "host": [
                 "{{baseUrl}}"
               ],
               "path": [
                 "segments",
                 "upload",
-                "{{jobId}}",
+                "{{segmentId}}",
                 "progress"
               ]
             }
@@ -461,6 +461,25 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "5. Get Campaign Progress",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/campaigns/{{campaignId}}/progress",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaigns",
+                "{{campaignId}}",
+                "progress"
+              ]
+            }
+          },
+          "response": []
         }
       ]
     }
@@ -479,11 +498,6 @@
     {
       "key": "segmentId",
       "value": "1",
-      "type": "string"
-    },
-    {
-      "key": "jobId",
-      "value": "123e4567-e89b-12d3-a456-426614174000",
       "type": "string"
     },
     {

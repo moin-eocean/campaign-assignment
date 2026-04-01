@@ -1,6 +1,7 @@
 package com.example.campaign.campaign.controller;
 
 import com.example.campaign.campaign.dto.response.CampaignResponse;
+import com.example.campaign.campaign.dto.response.CampaignProgressResponse;
 import com.example.campaign.campaign.dto.request.CampaignCreateRequest;
 import com.example.campaign.campaign.service.CampaignService;
 import com.example.campaign.common.response.ApiResponse;
@@ -34,5 +35,10 @@ public class CampaignController {
     @PostMapping("/{id}/stop")
     public ResponseEntity<ApiResponse<CampaignResponse>> stopCampaign(@PathVariable Long id) {
         return ResponseEntity.ok(ApiResponse.success(campaignService.stopCampaign(id), "Campaign stopped successfully"));
+    }
+
+    @GetMapping("/{id}/progress")
+    public ResponseEntity<ApiResponse<CampaignProgressResponse>> getCampaignProgress(@PathVariable Long id) {
+        return ResponseEntity.ok(ApiResponse.success(campaignService.getCampaignProgress(id), "Campaign progress retrieved successfully"));
     }
 }

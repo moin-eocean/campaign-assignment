@@ -1,6 +1,7 @@
 package com.example.campaign.common.service;
 
 import com.example.campaign.campaign.entity.CampaignMessage;
+import com.example.campaign.campaign.dto.response.CampaignProgressResponse;
 import com.example.campaign.campaign.entity.CampaignSegment;
 import com.example.campaign.campaign.enums.CampaignStatus;
 import com.example.campaign.campaign.repository.CampaignMessageRepository;
@@ -156,5 +157,34 @@ public class CampaignRedisService {
     public void markContactFailed(Long campaignId, String phone, String reasonWithTimestamp) {
         String key = String.format(Constants.REDIS_CONTACTS_FAILURES_KEY, campaignId);
         redisTemplate.opsForHash().put(key, phone, reasonWithTimestamp);
+    }
+
+    public CampaignProgressResponse getCampaignProgress(Long campaignId) {
+        String status = getCampaignStatus(campaignId);
+        if (status == null) {
+            return null;
+        }
+
+        String statsKey = String.format(Constants.REDIS_STATS_KEY, campaignId);
+        
+        List<Object> fields = List.of("total", "sent", "failed");
+        List<Object> values = redisTemplate.opsForHash().multiGet(statsKey, fields);
+
+        int totalContacts = values.get(0) != null ? Integer.parseInt((String) values.get(0)) : 0;
+        int sentCount = values.get(1) != null ? Integer.parseInt((String) values.get(1)) : 0;
+        int failedCount = values.get(2) != null ? Integer.parseInt((String) values.get(2)) : 0;
+
+        int processedContacts = sentCount + failedCount;
+        int percentage = totalContacts > 0 ? (int) ((processedContacts * 100.0) / totalContacts) : 0;
+
+        return CampaignProgressResponse.builder()
+                .campaignId(campaignId)
+                .status(status)
+                .totalContacts(totalContacts)
+                .processedContacts(processedContacts)
+                .sentCount(sentCount)
+                .failedCount(failedCount)
+                .progressPercentage(percentage)
+                .build();
     }
 }
