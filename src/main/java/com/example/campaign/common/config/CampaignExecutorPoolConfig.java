@@ -4,20 +4,19 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.SynchronousQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 
 @Configuration
 public class CampaignExecutorPoolConfig {
 
+    @Bean("campaignSemaphore")
+    public Semaphore campaignSemaphore() {
+        return new Semaphore(10);
+    }
+
     @Bean("campaignExecutorPool")
     public ExecutorService campaignExecutorPool() {
-        return new ThreadPoolExecutor(
-                0,                        // core threads — 0 so idle threads get destroyed
-                10,                       // max 10 concurrent campaigns
-                60L, TimeUnit.SECONDS,    // idle thread destroyed after 60s
-                new SynchronousQueue<>()  // no queue — if no thread available, reject immediately
-        );
+        return Executors.newCachedThreadPool();
     }
 }

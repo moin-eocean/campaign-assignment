@@ -35,6 +35,7 @@ public class ContactExecutor {
     private final Semaphore globalSemaphore;
     private final MessageLogRepository messageLogRepository;
     private final CampaignRepository campaignRepository;
+    private final Semaphore campaignSemaphore;
     private final Campaign campaignRef;
 
     private AtomicReference<String> liveStatusRef;
@@ -47,7 +48,8 @@ public class ContactExecutor {
             WhatsAppApiClient whatsAppApiClient,
             Semaphore globalSemaphore,
             MessageLogRepository messageLogRepository,
-            CampaignRepository campaignRepository
+            CampaignRepository campaignRepository,
+            Semaphore campaignSemaphore
     ) {
         this.campaignId = campaignId;
         this.campaignRedisService = campaignRedisService;
@@ -55,99 +57,105 @@ public class ContactExecutor {
         this.globalSemaphore = globalSemaphore;
         this.messageLogRepository = messageLogRepository;
         this.campaignRepository = campaignRepository;
+        this.campaignSemaphore = campaignSemaphore;
         this.campaignRef = campaignRepository.getReferenceById(campaignId);
     }
 
     public void execute() {
-        log.info("[ContactExecutor] Starting execution for campaign: {}", campaignId);
+        try {
+            log.info("[ContactExecutor] Starting execution for campaign: {}", campaignId);
 
-        String messageJson = campaignRedisService.getCampaignMessage(campaignId);
-        if (messageJson == null) {
-            log.error("[ContactExecutor] No message found in Redis for campaign {}. Aborting.", campaignId);
-            return;
-        }
+            String messageJson = campaignRedisService.getCampaignMessage(campaignId);
+            if (messageJson == null) {
+                log.error("[ContactExecutor] No message found in Redis for campaign {}. Aborting.", campaignId);
+                return;
+            }
 
-        liveStatusRef = new AtomicReference<>(CampaignStatus.RUNNING.name());
+            liveStatusRef = new AtomicReference<>(CampaignStatus.RUNNING.name());
 
-        try (ExecutorService vtPool = Executors.newThreadPerTaskExecutor(
-                Thread.ofVirtual().name("vt-campaign-" + campaignId + "-", 0).factory())) {
+            try (ExecutorService vtPool = Executors.newThreadPerTaskExecutor(
+                    Thread.ofVirtual().name("vt-campaign-" + campaignId + "-", 0).factory())) {
 
-            Thread statusWatcherThread = Thread.ofPlatform()
-                    .name("status-watcher-campaign-" + campaignId)
-                    .start(new StatusWatcher(vtPool, campaignId, campaignRedisService, liveStatusRef));
+                Thread statusWatcherThread = Thread.ofPlatform()
+                        .name("status-watcher-campaign-" + campaignId)
+                        .start(new StatusWatcher(vtPool, campaignId, campaignRedisService, liveStatusRef));
 
-            while (true) {
-                String status = liveStatusRef.get();
+                while (true) {
+                    String status = liveStatusRef.get();
 
-                if (CampaignStatus.STOPPED.name().equals(status)) {
-                    log.info("[ContactExecutor] Campaign {} STOPPED. Halting.", campaignId);
-                    break;
+                    if (CampaignStatus.STOPPED.name().equals(status)) {
+                        log.info("[ContactExecutor] Campaign {} STOPPED. Halting.", campaignId);
+                        break;
+                    }
+
+                    if (CampaignStatus.PAUSED.name().equals(status)) {
+                        log.info("[ContactExecutor] Campaign {} PAUSED. Exiting loop — resume will create a new executor.", campaignId);
+                        break;
+                    }
+
+                    try {
+                        globalSemaphore.acquire();
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+
+                    String phoneNumber = campaignRedisService.lpopContact(campaignId);
+
+                    if (phoneNumber == null) {
+                        log.info("[ContactExecutor] No more contacts for campaign {}.", campaignId);
+                        globalSemaphore.release();
+                        break;
+                    }
+
+                    final String phone = phoneNumber;
+                    vtPool.submit(() -> processContact(phone, messageJson));
                 }
 
-                if (CampaignStatus.PAUSED.name().equals(status)) {
-                    log.info("[ContactExecutor] Campaign {} PAUSED. Exiting loop — resume will create a new executor.", campaignId);
-                    break;
-                }
-
+                vtPool.shutdown();
                 try {
-                    globalSemaphore.acquire();
+                    if (!vtPool.awaitTermination(10, TimeUnit.MINUTES)) {
+                        vtPool.shutdownNow();
+                    }
+                } catch (InterruptedException e) {
+                    vtPool.shutdownNow();
+                    Thread.currentThread().interrupt();
+                }
+
+                statusWatcherThread.interrupt();
+                try {
+                    statusWatcherThread.join();
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
-                    break;
                 }
 
-                String phoneNumber = campaignRedisService.lpopContact(campaignId);
+            }
 
-                if (phoneNumber == null) {
-                    log.info("[ContactExecutor] No more contacts for campaign {}.", campaignId);
-                    globalSemaphore.release();
-                    break;
+            flushLogBuffer();
+
+            String finalStatus = liveStatusRef.get();
+            if (!CampaignStatus.STOPPED.name().equals(finalStatus)
+                    && !CampaignStatus.PAUSED.name().equals(finalStatus)) {
+                campaignRedisService.setCampaignStatus(campaignId, CampaignStatus.COMPLETED.name());
+
+                CampaignProgressResponse progress = campaignRedisService.getCampaignProgress(campaignId);
+                if (progress != null) {
+                    campaignRepository.updateProgressAndStatus(
+                            campaignId,
+                            CampaignStatus.COMPLETED,
+                            progress.getTotalContacts(),
+                            progress.getSentCount(),
+                            progress.getFailedCount(),
+                            LocalDateTime.now()
+                    );
+                } else {
+                    campaignRepository.updateStatus(campaignId, CampaignStatus.COMPLETED);
                 }
-
-                final String phone = phoneNumber;
-                vtPool.submit(() -> processContact(phone, messageJson));
+                log.info("[ContactExecutor] Campaign {} marked as COMPLETED with final progress saved.", campaignId);
             }
-
-            vtPool.shutdown();
-            try {
-                if (!vtPool.awaitTermination(10, TimeUnit.MINUTES)) {
-                    vtPool.shutdownNow();
-                }
-            } catch (InterruptedException e) {
-                vtPool.shutdownNow();
-                Thread.currentThread().interrupt();
-            }
-
-            statusWatcherThread.interrupt();
-            try {
-                statusWatcherThread.join();
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
-
-        }
-
-        flushLogBuffer();
-
-        String finalStatus = liveStatusRef.get();
-        if (!CampaignStatus.STOPPED.name().equals(finalStatus)
-                && !CampaignStatus.PAUSED.name().equals(finalStatus)) {
-            campaignRedisService.setCampaignStatus(campaignId, CampaignStatus.COMPLETED.name());
-            
-            CampaignProgressResponse progress = campaignRedisService.getCampaignProgress(campaignId);
-            if (progress != null) {
-                campaignRepository.updateProgressAndStatus(
-                        campaignId, 
-                        CampaignStatus.COMPLETED, 
-                        progress.getTotalContacts(), 
-                        progress.getSentCount(), 
-                        progress.getFailedCount(), 
-                        LocalDateTime.now()
-                );
-            } else {
-                campaignRepository.updateStatus(campaignId, CampaignStatus.COMPLETED);
-            }
-            log.info("[ContactExecutor] Campaign {} marked as COMPLETED with final progress saved.", campaignId);
+        } finally {
+            log.info("[ContactExecutor] Campaign completed, releasing slot: {}", campaignId);
+            campaignSemaphore.release();
         }
     }
 
@@ -160,9 +168,9 @@ public class ContactExecutor {
 
             for (int attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
                 result = whatsAppApiClient.send(phoneNumber, messageJson);
-                if (result.success()) break;
+                if (result != null && result.success()) break;
 
-                boolean nonRetryable = NON_RETRYABLE_REASONS.contains(result.failureReason());
+                boolean nonRetryable = result != null && NON_RETRYABLE_REASONS.contains(result.failureReason());
                 boolean lastAttempt = (attempt == MAX_ATTEMPTS - 1);
 
                 if (nonRetryable || lastAttempt) break;
@@ -185,7 +193,7 @@ public class ContactExecutor {
                 campaignRedisService.incrementStat(campaignId, "sent");
                 campaignRedisService.markContactSent(campaignId, phoneNumber, now);
             } else {
-                String reason = result.failureReason();
+                String reason = result != null ? result.failureReason() : "UNKNOWN";
                 campaignRedisService.incrementStat(campaignId, "failed");
                 campaignRedisService.markContactFailed(campaignId, phoneNumber, reason + ":" + now);
             }

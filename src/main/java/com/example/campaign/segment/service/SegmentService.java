@@ -146,15 +146,6 @@ public class SegmentService {
                 .build();
     }
 
-    public Page<SegmentResponse> getAllSegments(Pageable pageable) {
-        log.info("Fetching all segments");
-        return segmentRepository.findAll(pageable)
-                .map(segment -> {
-                    long count = segmentRepository.countContactsBySegmentId(segment.getId());
-                    return SegmentResponse.toResponse(segment, count);
-                });
-    }
-
     public SegmentResponse getSegmentById(Long id) {
         log.info("Fetching segment by id: {}", id);
         Segment segment = segmentRepository.findById(id)
@@ -213,15 +204,26 @@ public class SegmentService {
         log.info("Contact removed from segment successfully");
     }
 
-    public List<ContactResponse> getContactsBySegmentId(Long segmentId, Pageable pageable) {
+    public PagedResponse<ContactResponse> getContactsBySegmentId(Long segmentId, Pageable pageable) {
         log.info("Fetching contacts for segment id: {}", segmentId);
 
         if (!segmentRepository.existsById(segmentId)) {
             throw new ResourceNotFoundException("Segment", "id", segmentId);
         }
 
-        List<SegmentContact> segmentContacts = segmentContactRepository.findAllBySegmentId(segmentId);
+        Page<SegmentContact> page = segmentContactRepository.findAllBySegmentId(segmentId, pageable);
+        List<ContactResponse> contacts = page.getContent()
+                .stream()
+                .map(sc -> ContactResponse.toResponse(sc.getContact()))
+                .toList();
 
-        return segmentContacts.stream().map(sc -> ContactResponse.toResponse(sc.getContact())).toList();
+        return PagedResponse.<ContactResponse>builder()
+                .content(contacts)
+                .page(page.getNumber())
+                .size(page.getSize())
+                .totalElements(page.getTotalElements())
+                .totalPages(page.getTotalPages())
+                .last(page.isLast())
+                .build();
     }
 }

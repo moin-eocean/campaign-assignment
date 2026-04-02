@@ -90,7 +90,7 @@ public class SegmentController {
     }
 
     @GetMapping("/{id}/contacts")
-    public ResponseEntity<ApiResponse<List<ContactResponse>>> getContactsBySegmentId(
+    public ResponseEntity<ApiResponse<PagedResponse<ContactResponse>>> getContactsBySegmentId(
             @PathVariable Long id,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {

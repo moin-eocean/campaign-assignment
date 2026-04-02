@@ -41,8 +41,8 @@ spring:
       simple:
         acknowledge-mode: auto
         prefetch: 1
-        concurrency: 2
-        max-concurrency: 10
+        concurrency: 1
+        max-concurrency: 1
 
   data:
     redis:
