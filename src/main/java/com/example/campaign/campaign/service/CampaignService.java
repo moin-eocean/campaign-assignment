@@ -31,6 +31,16 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
+import com.example.campaign.campaign.dto.request.CampaignSearchRequest;
+import com.example.campaign.campaign.dto.request.CampaignUpdateRequest;
+import com.example.campaign.campaign.specification.CampaignSpecification;
+import com.example.campaign.common.response.PagedResponse;
+
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -50,7 +60,7 @@ public class CampaignService {
     public CampaignResponse createCampaign(CampaignCreateRequest request) {
         log.info("Creating campaign: {}", request.getName());
 
-        if(request.getSegmentIds().isEmpty() && request.getContactIds().isEmpty()){
+        if (request.getSegmentIds().isEmpty() && request.getContactIds().isEmpty()) {
             throw new ValidationFailedException("Segment IDs or Contact IDs are required");
         }
 
@@ -87,7 +97,7 @@ public class CampaignService {
             if (contacts.size() != request.getContactIds().size()) {
                 throw new ResourceNotFoundException("One or more Contacts not found");
             }
-            
+
             String segmentName = String.format("Campaign-%d-%s-Direct-Contacts", campaign.getId(), campaign.getName());
             Segment directSegment = segmentService.createSegmentWithContacts(segmentName, contacts);
 
@@ -107,7 +117,7 @@ public class CampaignService {
                 log.error("[CampaignService] Failed to process IMMEDIATE campaign. id={}, reason={}", campaign.getId(), e.getMessage(), e);
             }
         } else if (campaign.getType().equals(CampaignType.SCHEDULED)) {
-            if(campaign.getScheduledAt() == null){
+            if (campaign.getScheduledAt() == null) {
                 throw new ValidationFailedException("Scheduled time is required for scheduled campaign");
             }
             try {
@@ -118,8 +128,8 @@ public class CampaignService {
                 log.error("Failed to schedule campaign: {}", campaign.getId(), e);
             }
         }
- 
-        return CampaignResponse.toResponse(campaign);
+
+        return toResponse(campaign);
     }
 
     @Transactional
@@ -156,7 +166,7 @@ public class CampaignService {
         campaignRepository.save(campaign);
 
         log.info("[CampaignService] Campaign {} paused successfully", campaignId);
-        return CampaignResponse.toResponse(campaign);
+        return toResponse(campaign);
     }
 
     @Transactional
@@ -186,7 +196,7 @@ public class CampaignService {
         campaignProducer.sendCampaign(campaignId);
 
         log.info("[CampaignService] Campaign {} resumed and re-published to queue", campaignId);
-        return CampaignResponse.toResponse(campaign);
+        return toResponse(campaign);
     }
 
     @Transactional
@@ -210,13 +220,13 @@ public class CampaignService {
         campaignRepository.save(campaign);
 
         log.info("[CampaignService] Campaign {} stopped successfully", campaignId);
-        return CampaignResponse.toResponse(campaign);
+        return toResponse(campaign);
     }
 
     @Transactional(readOnly = true)
     public CampaignProgressResponse getCampaignProgress(Long campaignId) {
         CampaignProgressResponse progress = campaignRedisService.getCampaignProgress(campaignId);
-        
+
         if (progress == null) {
             Campaign campaign = campaignRepository.findById(campaignId)
                     .orElseThrow(() -> new ResourceNotFoundException("Campaign", "id", campaignId));
@@ -237,7 +247,167 @@ public class CampaignService {
                     .progressPercentage(percentage)
                     .build();
         }
-        
+
         return progress;
+    }
+
+    @Transactional(readOnly = true)
+    public CampaignResponse findById(Long id) {
+        log.info("Fetching campaign by id {}", id);
+        Campaign campaign = campaignRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Campaign", "id", id));
+        return toResponse(campaign);
+    }
+
+    @Transactional(readOnly = true)
+    public List<CampaignResponse> findAll() {
+        log.info("Fetching all campaigns");
+        return campaignRepository.findAll().stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public PagedResponse<CampaignResponse> search(CampaignSearchRequest request) {
+        log.info("Searching campaigns — search={}", request.toString());
+
+        Sort sort = Sort.by(
+                "asc".equalsIgnoreCase(request.getSortDirection())
+                        ? Sort.Direction.ASC
+                        : Sort.Direction.DESC,
+                request.getSortBy());
+
+        Pageable pageable = PageRequest.of(request.getPage(), request.getSize(), sort);
+        Specification<Campaign> spec = CampaignSpecification.buildSearchSpec(request);
+        Page<Campaign> page = campaignRepository.findAll(spec, pageable);
+
+        List<CampaignResponse> content = page.getContent().stream()
+                .map(this::toResponse)
+                .collect(Collectors.toList());
+
+        return PagedResponse.<CampaignResponse>builder()
+                .content(content)
+                .page(page.getNumber())
+                .size(page.getSize())
+                .totalElements(page.getTotalElements())
+                .totalPages(page.getTotalPages())
+                .last(page.isLast())
+                .build();
+    }
+
+    @Transactional
+    public CampaignResponse updateCampaign(Long id, CampaignUpdateRequest request) {
+        log.info("Updating campaign id {}", id);
+
+        Campaign campaign = campaignRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Campaign", "id", id));
+
+        if (campaign.getStatus() != CampaignStatus.DRAFT && campaign.getStatus() != CampaignStatus.SCHEDULED) {
+            throw new InvalidCampaignStateException(
+                    String.format("Cannot update campaign %d — current status is %s. Only DRAFT or SCHEDULED campaigns can be edited.",
+                            id, campaign.getStatus()));
+        }
+
+        campaign.setName(request.getName());
+        campaign.setType(request.getType());
+        campaign.setScheduledAt(request.getScheduledAt());
+
+        CampaignMessage message = campaignMessageRepository.findByCampaignId(id)
+                .orElseThrow(() -> new ResourceNotFoundException("CampaignMessage", "id", id));
+
+        message.setType(request.getMessageType());
+        message.setContent(request.getMessageContent());
+        campaignMessageRepository.save(message);
+
+        List<CampaignSegment> existingSegments = campaignSegmentRepository.findAllByCampaignId(id);
+        campaignSegmentRepository.deleteAll(existingSegments);
+
+        if (request.getSegmentIds() != null && !request.getSegmentIds().isEmpty()) {
+            List<Segment> segments = segmentRepository.findAllById(request.getSegmentIds());
+            if (segments.size() != request.getSegmentIds().size()) {
+                throw new ResourceNotFoundException("One or more Segments not found");
+            }
+            List<CampaignSegment> campaignSegments = segments.stream().map(segment -> {
+                CampaignSegment cs = new CampaignSegment();
+                cs.setCampaign(campaign);
+                cs.setSegment(segment);
+                return cs;
+            }).collect(Collectors.toList());
+            campaignSegmentRepository.saveAll(campaignSegments);
+        }
+
+        if (request.getContactIds() != null && !request.getContactIds().isEmpty()) {
+            List<Contact> contacts = contactRepository.findAllByIdIn(request.getContactIds());
+            if (contacts.size() != request.getContactIds().size()) {
+                throw new ResourceNotFoundException("One or more Contacts not found");
+            }
+
+            String segmentName = String.format("Campaign-%d-%s-Direct-Contacts", campaign.getId(), campaign.getName());
+            Segment directSegment = segmentService.createSegmentWithContacts(segmentName, contacts);
+
+            CampaignSegment cs = new CampaignSegment();
+            cs.setCampaign(campaign);
+            cs.setSegment(directSegment);
+            campaignSegmentRepository.save(cs);
+        }
+
+        if (campaign.getType() == CampaignType.IMMEDIATE) {
+            campaign.setStatus(CampaignStatus.DRAFT);
+        } else {
+            campaign.setStatus(CampaignStatus.SCHEDULED);
+            if (campaign.getScheduledAt() != null) {
+                try {
+                    campaignSchedulerService.schedule(id, campaign.getScheduledAt());
+                } catch (Exception e) {
+                    log.error("Failed to schedule updated campaign {}: {}", id, e.getMessage(), e);
+                }
+            }
+        }
+
+        campaignRepository.save(campaign);
+        log.info("Campaign updated successfully id: {}", id);
+        return toResponse(campaign);
+    }
+
+    @Transactional
+    public void deleteCampaign(Long id) {
+        log.info("Deleting campaign id {}", id);
+
+        Campaign campaign = campaignRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Campaign", "id", id));
+
+        if (campaign.getStatus() != CampaignStatus.DRAFT) {
+            throw new InvalidCampaignStateException(
+                    String.format("Cannot delete campaign %d — current status is %s. Only DRAFT campaigns can be deleted.",
+                            id, campaign.getStatus()));
+        }
+        campaignMessageRepository.findByCampaignId(id).ifPresent(campaignMessageRepository::delete);
+        List<CampaignSegment> segments = campaignSegmentRepository.findAllByCampaignId(id);
+        campaignSegmentRepository.deleteAll(segments);
+        campaignRepository.delete(campaign);
+
+        log.info("Campaign deleted id {}", id);
+    }
+
+
+    private CampaignResponse toResponse(Campaign campaign) {
+        CampaignMessage message = campaignMessageRepository.findByCampaignId(campaign.getId()).orElse(null);
+        CampaignResponse res = new CampaignResponse();
+        res.setId(campaign.getId());
+        res.setName(campaign.getName());
+        res.setStatus(campaign.getStatus());
+        res.setType(campaign.getType());
+        res.setScheduledAt(campaign.getScheduledAt());
+        res.setCreatedAt(campaign.getCreatedAt());
+        res.setCompletedAt(campaign.getCompletedAt());
+        res.setTotalContacts(campaign.getTotalContacts() != null ? campaign.getTotalContacts() : 0);
+        res.setSentCount(campaign.getSentCount() != null ? campaign.getSentCount() : 0);
+        res.setFailedCount(campaign.getFailedCount() != null ? campaign.getFailedCount() : 0);
+        if (message != null) {
+            res.setMessageType(message.getType());
+            res.setMessageContent(message.getContent());
+        }
+
+        return res;
     }
 }

@@ -406,7 +406,124 @@
           "response": []
         },
         {
-          "name": "2. Pause Campaign",
+          "name": "2. Get All Campaigns",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/campaigns",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaigns"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "3. Get Campaign By ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/campaigns/{{campaignId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaigns",
+                "{{campaignId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "4. Search Campaigns (Pagination/Sort)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"search\": \"\",\n  \"status\": \"DRAFT\",\n  \"page\": 0,\n  \"size\": 20,\n  \"sortBy\": \"createdAt\",\n  \"sortDirection\": \"desc\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/campaigns/search",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaigns",
+                "search"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "5. Update Campaign",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Spring Sale 2026 Updated\",\n  \"type\": \"IMMEDIATE\",\n  \"contactIds\": [1, 2],\n  \"segmentIds\": [],\n  \"messageType\": \"TEXT\",\n  \"messageContent\": \"Updated spring collection alert!\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/campaigns/{{campaignId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaigns",
+                "{{campaignId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "6. Delete Campaign",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/campaigns/{{campaignId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "campaigns",
+                "{{campaignId}}"
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "7. Pause Campaign",
           "request": {
             "method": "POST",
             "header": [],
@@ -425,7 +542,7 @@
           "response": []
         },
         {
-          "name": "3. Resume Campaign",
+          "name": "8. Resume Campaign",
           "request": {
             "method": "POST",
             "header": [],
@@ -444,7 +561,7 @@
           "response": []
         },
         {
-          "name": "4. Stop Campaign",
+          "name": "9. Stop Campaign",
           "request": {
             "method": "POST",
             "header": [],
@@ -463,7 +580,7 @@
           "response": []
         },
         {
-          "name": "5. Get Campaign Progress",
+          "name": "10. Get Campaign Progress",
           "request": {
             "method": "GET",
             "header": [],
