@@ -27,7 +27,7 @@ spring:
         dialect: org.hibernate.dialect.MySQLDialect
         format_sql: true
         jdbc:
-          batch_size: 500
+          batch_size: 1500
         order_inserts: true
         order_updates: true
 
@@ -48,7 +48,7 @@ spring:
     redis:
       host: localhost
       port: 6379
-      password: yourpassword   # if set, warna remove karo
+      password: yourpassword
       timeout: 2000ms
       lettuce:
         pool:
@@ -58,22 +58,22 @@ spring:
           max-wait: 1000ms
 
   quartz:
-    job-store-type: jdbc               # Production: DB mein persist hoga
+    job-store-type: jdbc
     jdbc:
-      initialize-schema: always        # Quartz tables auto-create karega
+      initialize-schema: always
     properties:
       org.quartz:
         scheduler:
           instanceName: CampaignScheduler
-          instanceId: AUTO           # Cluster ke liye AUTO
+          instanceId: AUTO
         jobStore:
           tablePrefix: QRTZ_
-          isClustered: false         # Single node — true karo agar cluster ho
+          isClustered: false
           clusterCheckinInterval: 10000
           useProperties: false
         threadPool:
           class: org.quartz.simpl.SimpleThreadPool
-          threadCount: 10            # 10 parallel jobs max
+          threadCount: 10
           threadPriority: 5
 
 # WhatsApp Global Semaphore — controls max concurrent API calls across ALL campaigns
